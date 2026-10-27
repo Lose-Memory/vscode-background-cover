@@ -52,14 +52,6 @@
                 }
             },
             {
-                "command": "backgroundCover.home",
-                "title": "首页",
-                "icon": {
-                    "light": "resources/light/home.svg",
-                    "dark": "resources/dark/home.svg"
-                }
-            },
-            {
                 "command": "backgroundCover.switchMode",
                 "title": "配置",
                 "icon": "$(settings-gear)"
@@ -145,18 +137,6 @@
                     ],
                     "default": "auto",
                     "description": "Background image blend mode / 图片文字混合模式，对应主题模式"
-                },
-                "backgroundCover.defaultOnlinePage": {
-                    "type": "string",
-                    "default": "https://vs.20988.xyz/d/24-vscodebei-jing-tu-tu-ku",
-                    "description": "Online images default page / 在线图库默认页面"
-                },
-                "backgroundCover.cacheLimit": {
-                    "type": "number",
-                    "default": 200,
-                    "minimum": 10,
-                    "maximum": 10000,
-                    "description": "Max number of cached online image files. Older files are removed once the cache exceeds this. / 在线图片缓存上限（文件个数），超出后按时间自动清理最旧的文件"
                 }
             }
         },
@@ -176,17 +156,6 @@
                     "type": "webview",
                     "name": "Studio",
                     "when": "backgroundCover.mode == 'menu'"
-                },
-                {
-                    "id": "backgroundCover.menu",
-                    "name": "Menu",
-                    "when": "backgroundCover.mode == 'legacyMenu'"
-                },
-                {
-                    "id": "backgroundCover.readerView",
-                    "type": "webview",
-                    "name": "Online Gallery",
-                    "when": "backgroundCover.mode != 'menu' && backgroundCover.mode != 'legacyMenu'"
                 }
             ]
         },
@@ -223,11 +192,10 @@
         "build:webview": "cd webview && npm install --silent && npm run build",
         "watch:webview": "cd webview && npm run dev",
         "test": "npm run compile && node ./node_modules/vscode/bin/test",
-        "test:prune": "npm run compile && node scripts/test-prune-cache.js",
         "test:particle": "npm run compile && node scripts/test-particle-throttle.js",
         "test:newfeatures": "npm run compile && node scripts/test-new-features.js",
         "test:autorefresh": "npm run compile && node scripts/test-auto-refresh.js",
-        "test:unit": "npm run compile && node scripts/test-config-update.js && node scripts/test-auto-refresh.js && node scripts/test-prune-cache.js && node scripts/test-particle-throttle.js && node scripts/test-new-features.js",
+        "test:unit": "npm run compile && node scripts/test-config-update.js && node scripts/test-auto-refresh.js && node scripts/test-particle-throttle.js && node scripts/test-new-features.js",
         "check": "tslint -p ./"
     },
     "devDependencies": {

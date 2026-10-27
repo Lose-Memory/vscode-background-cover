@@ -56,14 +56,6 @@ export function isVideoFile(name: string): boolean {
     return VIDEO_EXTS.some((ext) => lower.endsWith(ext));
 }
 
-export function isOnlineUrl(value: string | undefined): boolean {
-    return !!value && /^https?:\/\//i.test(value);
-}
-
-export function delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 /** 扫描上限：防止把整个 ~/ 或网盘挂载目录同步递归一遍卡住扩展宿主。 */
 export const FOLDER_SCAN_MAX_DEPTH = 6;
 export const FOLDER_SCAN_MAX_FILES = 5000;

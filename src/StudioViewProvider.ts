@@ -12,17 +12,14 @@ import {
     commands,
     env,
     workspace,
-    window,
     Disposable
 } from 'vscode';
 import { PickList, getAllPets } from './PickList';
 import { onDidChangeGlobalState } from './global';
 import { getColorEntries } from './color';
 import { resolveCurrentBlur, resolveCurrentImagePath, resolveCurrentOpacity } from './windowBackground';
-import { DEFAULT_ONLINE_CACHE_LIMIT, findCachedOnlineImage, isOnlineUrl, readOnlineCacheEntries } from './onlineCache';
 import { DEFAULT_PARTICLE_FPS } from './ParticleEffect';
 import { expandPathVariables } from './pathUtil';
-import { GALLERY_ORIGIN, isValidGalleryMessage } from './netSafety';
 
 const PUSH_DEBOUNCE_MS = 120;
 
@@ -53,11 +50,10 @@ const WEBVIEW_WRITABLE_STATE_KEYS = new Set<string>([...DECORATION_STATE_KEYS, '
  *   { type: 'setGlobalState', key: string, value: any }
  *   { type: 'applyDecorations', state: { ... } }
  *   { type: 'openExternal', url: string }
- *   { type: 'galleryMessage', command: 'set_img'|'set_home', data: any }
  *
  * Outbound:
  *   { type: 'state', data: { locale, config, state } }
- *   { type: 'navigate', tab: 'home'|'gallery'|'advanced'|'decoration' }
+ *   { type: 'navigate', tab: 'home'|'advanced'|'decoration' }
  */
 export class StudioViewProvider implements WebviewViewProvider {
 
@@ -65,7 +61,6 @@ export class StudioViewProvider implements WebviewViewProvider {
 
     private view?: WebviewView;
     private disposables: Disposable[] = [];
-    private galleryBusy = false;
     /** Set of allowed local-resource root directories (fs paths). */
     private allowedRoots = new Set<string>();
     private pushTimer?: ReturnType<typeof setTimeout>;
@@ -135,15 +130,13 @@ export class StudioViewProvider implements WebviewViewProvider {
         const cfg = workspace.getConfiguration('backgroundCover');
         const gs = this.ctx.globalState;
 
-        const cacheEntries = readOnlineCacheEntries();
-
         const imagePath = resolveCurrentImagePath(cfg.get<string>('imagePath') || '');
-        const imagePathDisplay = this.toWebviewUri(imagePath, cacheEntries);
+        const imagePathDisplay = this.toWebviewUri(imagePath);
 
         const recentRaw = gs.get<string[]>('backgroundCoverRecentImages', []) || [];
         const recentImages = recentRaw.map(p => ({
             path: p,
-            display: this.toWebviewUri(p, cacheEntries),
+            display: this.toWebviewUri(p),
             name: this.basename(p)
         }));
 
@@ -204,7 +197,6 @@ export class StudioViewProvider implements WebviewViewProvider {
                     blendModel: cfg.get('blendModel') ?? 'auto',
                     randomImageFolder: cfg.get('randomImageFolder') ?? '',
                     perWindowBackground: cfg.get('perWindowBackground') ?? true,
-                    cacheLimit: cfg.get('cacheLimit') ?? DEFAULT_ONLINE_CACHE_LIMIT,
                     backgroundTransition: true
                 },
                 state: {
@@ -227,7 +219,7 @@ export class StudioViewProvider implements WebviewViewProvider {
     }
 
     /** Programmatic navigation hook for `view/title` menu commands. */
-    public navigate(tab: 'home' | 'gallery' | 'advanced' | 'decoration'): void {
+    public navigate(tab: 'home' | 'advanced' | 'decoration'): void {
         this.view?.webview.postMessage({ type: 'navigate', tab });
     }
 
@@ -277,30 +269,6 @@ export class StudioViewProvider implements WebviewViewProvider {
                     await env.openExternal(Uri.parse(msg.url));
                 }
                 return;
-
-            case 'galleryMessage':
-                // Forwarded from the embedded online gallery iframe
-                if (this.galleryBusy) { return; }
-                this.galleryBusy = true;
-                try {
-                    const data = msg.data || {};
-                    if (!isValidGalleryMessage(msg.command, data)) {
-                        return;
-                    }
-                    if (msg.command === 'set_img') {
-                        if (data.link) {
-                            await this.ctx.globalState.update('backgroundCoverOnlineDefault', data.link);
-                        }
-                        await PickList.updateImgPath(data.url);
-                    } else if (msg.command === 'set_home') {
-                        await this.ctx.globalState.update('backgroundCoverOnlineDefault', data.url);
-                        await PickList.updateImgPath(data.url);
-                        window.showInformationMessage('配置帖子图库成功，记得开启自动更换功能噢！/ Set successfully, remember to turn on the auto-change function!');
-                    }
-                } finally {
-                    this.galleryBusy = false;
-                }
-                return;
         }
     }
 
@@ -317,21 +285,13 @@ export class StudioViewProvider implements WebviewViewProvider {
 
     /**
      * Convert a local file path to a webview-safe URI.
-     *
-     * 在线地址不会原样返回：直接把 https 地址塞进 <img src> 会让每次 pushState
-     * 都重新向云存储发请求(最近列表 20 条 = 20 个请求)，白烧流量费。图片下载后
-     * 已落在缓存目录里，这里只引用那份本地副本；没有副本就返回空串走占位图。
-     *
-     * `cacheEntries` 由批量调用方预读一次，避免逐条 readdir。
      */
-    private toWebviewUri(p: string, cacheEntries?: string[]): string {
+    private toWebviewUri(p: string): string {
         if (!p) { return ''; }
-        const local = isOnlineUrl(p) ? findCachedOnlineImage(p, cacheEntries) : p;
-        if (!local) { return ''; }
         try {
-            if (!fs.existsSync(local)) { return ''; }
-            this.ensureRootForFile(local);
-            return this.view!.webview.asWebviewUri(Uri.file(local)).toString();
+            if (!fs.existsSync(p)) { return ''; }
+            this.ensureRootForFile(p);
+            return this.view!.webview.asWebviewUri(Uri.file(p)).toString();
         } catch {
             return '';
         }
@@ -391,16 +351,13 @@ export class StudioViewProvider implements WebviewViewProvider {
         }
 
         const nonce = crypto.randomBytes(16).toString('base64');
-        // img-src/media-src 不放开 https:：所有预览都必须引用下载到本地的缓存副本，
-        // 否则面板每次刷新都会回源云存储。frame-src 仍需 https 供在线图库 iframe 使用。
         const csp = [
             `default-src 'none'`,
             `img-src ${webview.cspSource} data: blob:`,
             `media-src ${webview.cspSource} data: blob:`,
             `style-src ${webview.cspSource} 'unsafe-inline'`,
             `font-src ${webview.cspSource} data:`,
-            `script-src 'nonce-${nonce}'`,
-            `frame-src ${GALLERY_ORIGIN}`
+            `script-src 'nonce-${nonce}'`
         ].join('; ');
 
         // Always use our own CSP so the nonce below matches; drop any CSP shipped in the build.

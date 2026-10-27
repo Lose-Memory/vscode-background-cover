@@ -2,7 +2,6 @@ export default {
     appTitle:          'Background Cover Studio',
     tabHome:           'Home',
     tabLocal:          'Local',
-    tabOnline:         'Online',
     tabAdvanced:       'Advanced',
     tabDecoration:     'Decoration',
 
@@ -16,7 +15,6 @@ export default {
 
     localGallery:      'Local Gallery',
     recentImages:      'Recently Used',
-    onlineGallery:     'Online Gallery',
     addDirectory:      'Add Folder',
     inputPath:         'Input URL',
     emptyRecent:       'No recent images yet — pick one to start.',
@@ -24,10 +22,6 @@ export default {
     clearRecentConfirm: 'Clear the recently used list?',
     confirm:           'OK',
     cancel:            'Cancel',
-    openOnlineInBrowser: 'Open in Browser',
-    refreshOnline:     'Refresh',
-    loadOnlineGallery: 'Load Online Gallery',
-    loadOnlineGalleryHint: 'Loaded on demand so opening the panel does not fetch online images',
 
     autoRandom:        'Auto Random',
     enabled:           'Enabled',
@@ -39,7 +33,6 @@ export default {
     windowScope:       'Window Background',
     perWindowBackground:     'Per-window background',
     perWindowBackgroundHint: 'On: each window keeps its own image. Off: all windows share one.',
-    openCacheFolder:   'Open Cache Folder',
 
     petAssistant:      'Top Pet',
     enablePet:         'Enable Pet',
@@ -80,8 +73,6 @@ export default {
     presetColors:         'Preset Colors',
     customColor:          'Custom Color',
     intervalSeconds:      'Interval (seconds)',
-    cacheLimit:           'Image cache limit',
-    cacheLimitHint:       'Max cached online image files. Oldest files are removed once the cache exceeds this. Prevents extension-less online sources from growing disk usage without bound under auto-random.',
     applyChanges:         'Reload to apply changes',
     applyChangesHint:     'Changes in this section require a window reload. Click the button below after editing.',
 
@@ -103,7 +94,6 @@ export default {
     themeOverwatchShort:    'OW',
     logoAlt:                'Extension logo',
     previewAlt:             'Current background preview',
-    onlineGalleryFrameTitle: 'Online gallery',
     thumbSelectLabel:       'Set as background: {name}',
     videoThumbLabel:        'Video: {name}'
 };

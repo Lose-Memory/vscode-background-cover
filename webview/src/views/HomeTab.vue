@@ -80,10 +80,6 @@
                     <span class="tile-icon tile-icon--red"><el-icon><Delete /></el-icon></span>
                     <span class="tile-label">{{ t('clearBackground') }}</span>
                 </button>
-                <button class="action-tile" @click="onOpenCache">
-                    <span class="tile-icon tile-icon--cyan"><el-icon><FolderOpened /></el-icon></span>
-                    <span class="tile-label">{{ t('openCacheFolder') }}</span>
-                </button>
                 <button class="action-tile" @click="onSupport">
                     <span class="tile-icon tile-icon--pink"><el-icon><Star /></el-icon></span>
                     <span class="tile-label">{{ t('supportAuthor') }}</span>
@@ -123,7 +119,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Picture, Upload, Operation, RefreshRight, Delete, Grid, FolderOpened, Star, Link, ChatDotRound, ChatLineRound, StarFilled } from '@element-plus/icons-vue';
+import { Picture, Upload, Operation, RefreshRight, Delete, Grid, Star, Link, ChatDotRound, ChatLineRound, StarFilled } from '@element-plus/icons-vue';
 import { useI18n } from '../composables/useI18n';
 import { useBridge } from '../composables/useBridge';
 import { useDebouncedPost } from '../composables/useDebouncedPost';
@@ -162,8 +158,8 @@ function onBlurInput(v: number) {
 function onPick()    { bridge.post({ type: 'runAction', action: ActionType.SelectPictures }); }
 function onClear()   { bridge.post({ type: 'runAction', action: ActionType.CloseBackground }); }
 function onRefresh() { bridge.post({ type: 'runAction', action: ActionType.UpdateBackground }); }
-function onOpenCache() { bridge.post({ type: 'runAction', action: ActionType.OpenCacheFolder }); }
 function onSupport()   { bridge.post({ type: 'runAction', action: ActionType.OpenFilePath, path: '//resources//support.jpg' }); }
+
 function onWechat()    { bridge.post({ type: 'runAction', action: ActionType.OpenFilePath, path: '//resources//wx.jpg' }); }
 
 function onRepo()   { bridge.post({ type: 'openExternal', url: GITHUB_REPO_URL }); }

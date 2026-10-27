@@ -2,23 +2,18 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
-import * as https from 'https';
-import * as http from 'http';
-import { URL } from 'url';
-import { pipeline, Transform } from 'stream';
 import { commands, env, Uri, window, WorkspaceConfiguration, UIKind } from 'vscode';
 import * as lockfile from 'proper-lockfile';
 import version from './version';
 import { SudoPromptHelper } from './SudoPromptHelper';
 import * as fse from 'fs-extra';
 import { getContext } from './global';
-import { getOnlineCacheDir, getOnlineCacheHash, findCachedOnlineImage, pruneOnlineCache } from './onlineCache';
 import { getParticleEffectJs, DEFAULT_PARTICLE_FPS } from './ParticleEffect';
 import { getAllPets } from './PickList';
 import Color from './color';
 import { getSessionHash, getWindowCssFileName, isPerWindowEnabled } from './windowBackground';
 import { detectPatchStateFromFile, PatchState, BOOTSTRAP_VERSION } from './patchState';
-import { delay, expandPathVariables, hasFileExtension, isSupportedMedia, isVideoFile, pickRandomFromFolder } from './pathUtil';
+import { expandPathVariables, hasFileExtension, isVideoFile, pickRandomFromFolder } from './pathUtil';
 import {
     getCorruptionWarningCss,
     getTransitionDeclaration,
@@ -36,19 +31,14 @@ import {
     patchCodeServerWorkbenchHtml,
     clearCodeServerWorkbenchHtmlPatch
 } from './patchCleanup';
-import { MAX_DOWNLOAD_BYTES, MAX_REDIRECTS, parseHttpUrl } from './netSafety';
 import {
     BackgroundApplyCancelledError,
-    BackgroundDownloadError,
-    BackgroundPatchError,
-    wrapDownloadError
+    BackgroundPatchError
 } from './downloadError';
 
 export {
     BackgroundApplyCancelledError,
-    BackgroundDownloadError,
-    BackgroundPatchError,
-    shouldTryNextAutoImage
+    BackgroundPatchError
 } from './downloadError';
 
 interface AdditionalBundle {
@@ -188,11 +178,6 @@ const DESKTOP_HTML_ENTRIES = [
     path.join(APP_OUT_PATH, 'vs', 'code', 'electron-browser', 'workbench', 'workbench.html'),
     path.join(APP_OUT_PATH, 'vs', 'sessions', 'electron-browser', 'sessions.html')
 ];
-const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
-const DEFAULT_ACCEPT_HEADER = 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8';
-const DOWNLOAD_MAX_ATTEMPTS = 3;
-const DOWNLOAD_RETRY_DELAYS_MS = [0, 500, 1500];
-const DOWNLOAD_TOTAL_TIMEOUT_MS = 120_000;
 
 // 本进程内已确认「补丁块 == 期望内容」的 bundle：路径 → 补丁 hash + 文件 mtime/size。
 // bootstrap 在同一扩展版本内是固定的，换图只改外部 CSS/JS，没必要每次都把十几 MB 的
@@ -398,7 +383,6 @@ export class FileDom {
     private readonly blendModel: string;
     private readonly systemType: string;
     private readonly forceHttpsUpgrade: boolean;
-    private readonly skipOnlineCache: boolean;
     private readonly transitionEnabled: boolean;
     private readonly shouldApply: () => boolean;
     private readonly windowCssFilePath: string;
@@ -420,7 +404,6 @@ export class FileDom {
         sizeModel: string = 'cover',
         blur: number = 0,
         blendModel: string = '',
-        skipOnlineCache: boolean = false,
         shouldApply: () => boolean = () => true,
         silent: boolean = false
     ) {
@@ -435,9 +418,6 @@ export class FileDom {
         this.forceHttpsUpgrade = this.workConfig.get('forceHttpsUpgrade', true);
         // 背景切换动画始终启用；仍尊重系统减少动态效果设置。
         this.transitionEnabled = true;
-        // skipOnlineCache 只影响静态图是否复用已下载副本（换图源需要重下覆盖），
-        // 不影响无扩展名动态源（其文件数由 pruneOnlineCache 收敛）。
-        this.skipOnlineCache = skipOnlineCache;
         this.shouldApply = shouldApply;
         // 共用模式(perWindowBackground=false)下直接写共享 CSS 文件，并用固定 token
         // 让注入端把 __backgroundCoverCssUrl 复位到共享地址。
@@ -490,11 +470,6 @@ export class FileDom {
 
         let lowerPath = this.imagePath.toLowerCase();
 
-        if (lowerPath.startsWith('http://') || lowerPath.startsWith('https://')) {
-            await this.downloadAndCacheImage();
-            lowerPath = this.imagePath.toLowerCase();
-        }
-
         this.isVideo = this.checkIsVideo(this.imagePath);
 
         if (
@@ -523,277 +498,6 @@ export class FileDom {
                 }
             }
         }
-    }
-
-    // 将在线图片下载并缓存到本地
-    private async downloadAndCacheImage(): Promise<void> {
-        try {
-            const cacheDir = getOnlineCacheDir();
-            await fse.ensureDir(cacheDir);
-
-            const urlHash = getOnlineCacheHash(this.imagePath);
-            let ext = '.jpg';
-            let isStaticImage = false;
-            let uniqueDownload = false;
-
-            try {
-                const urlObj = new URL(this.imagePath);
-                const detectedExt = path.extname(urlObj.pathname);
-                if (!detectedExt) {
-                    uniqueDownload = true;
-                } else {
-                    ext = detectedExt;
-                    if (isSupportedMedia(ext)) {
-                        isStaticImage = true;
-                    } else {
-                        uniqueDownload = true;
-                    }
-                }
-            } catch {
-                uniqueDownload = true;
-            }
-            
-            const cachePath = path.join(cacheDir, `${urlHash}${ext}`);
-
-            // 复用已有缓存：静态图（有扩展名 URL）下载到固定的 <hash><ext> 路径。
-            // skipOnlineCache=true（自动随机换图时设置）表示"该源每次可能返回不同
-            // 内容"（如 picsum.photos 的 .jpg 轮换源），必须重新下载并覆盖同一文件来
-            // 换图——覆盖不累积磁盘，只是费流量。无扩展名/动态源（uniqueDownload）
-            // 另走下方按内容哈希命名的新文件分支，文件数由 pruneOnlineCache 收敛。
-            if (!this.skipOnlineCache && isStaticImage && !uniqueDownload && await fse.pathExists(cachePath)) {
-                this.imagePath = cachePath;
-                // 复用即刷新 mtime：pruneOnlineCache 按 mtime 淘汰最旧的文件，不刷新的话
-                // 很久以前设置的静态背景会因为"下载时间最旧"被清掉，下次应用还得重下。
-                await this.touchCacheFile(cachePath);
-                return;
-            }
-
-            let lastError: BackgroundDownloadError | undefined;
-            for (let attempt = 0; attempt < DOWNLOAD_MAX_ATTEMPTS; attempt++) {
-                if (!this.shouldApply()) {
-                    throw new BackgroundApplyCancelledError();
-                }
-                if (attempt > 0) {
-                    if (!lastError || !lastError.retrySame) {
-                        break;
-                    }
-                    const waitMs = DOWNLOAD_RETRY_DELAYS_MS[attempt] || 1500;
-                    console.warn(`[FileDom] Retrying download (${attempt + 1}/${DOWNLOAD_MAX_ATTEMPTS}) in ${waitMs}ms:`, lastError.message);
-                    await delay(waitMs);
-                    if (!this.shouldApply()) {
-                        throw new BackgroundApplyCancelledError();
-                    }
-                }
-
-                const timestamp = Date.now();
-                const tempPath = path.join(cacheDir, `${urlHash}-${timestamp}-${attempt}${ext}.tmp`);
-                try {
-                    const { contentType } = await this.downloadFile(this.imagePath, tempPath);
-                    let finalExt = ext;
-                    if ((!ext || ext === '.img' || uniqueDownload) && contentType) {
-                        finalExt = this.getExtensionFromContentType(contentType) || finalExt;
-                    }
-
-                    // 动态源按"内容"而不是"下载时刻"命名：图池型/内容稳定的源重复下载
-                    // 同一张图时会命中已有文件，不再新增副本（否则每次换图都多一个文件，
-                    // 只能靠 pruneOnlineCache 压回上限）。哈希失败时退回时间戳命名，
-                    // 保证新增逻辑不会让下载失败。命名保留 <urlHash> 前缀，
-                    // findCachedOnlineImage 的 URL→文件查找不受影响。
-                    const contentHash = uniqueDownload ? await this.hashFile(tempPath) : undefined;
-                    const targetPath = (!uniqueDownload && isStaticImage)
-                        ? cachePath
-                        : path.join(cacheDir, `${urlHash}-${contentHash || timestamp}${finalExt || '.img'}`);
-
-                    if (uniqueDownload && contentHash && await fse.pathExists(targetPath)) {
-                        // 内容已在缓存里：丢弃临时文件，复用已有副本并刷新 mtime。
-                        // 没有新增文件，所以这里不需要再收敛缓存。
-                        await fse.remove(tempPath);
-                        this.imagePath = targetPath;
-                        await this.touchCacheFile(targetPath);
-                        return;
-                    }
-
-                    await fse.move(tempPath, targetPath, { overwrite: true });
-                    this.imagePath = targetPath;
-                    // 只有无扩展名/动态地址的在线源会新增文件（静态源是覆盖写同一路径，
-                    // 目录不增长），所以只在这条分支收敛缓存，避免每次换图都扫一遍目录。
-                    if (uniqueDownload) {
-                        await pruneOnlineCache();
-                    }
-                    return;
-                } catch (error) {
-                    lastError = wrapDownloadError(error);
-                    try {
-                        if (await fse.pathExists(tempPath)) {
-                            await fse.unlink(tempPath);
-                        }
-                    } catch {
-                        // ignore temp cleanup
-                    }
-                    if (!lastError.retrySame) {
-                        break;
-                    }
-                }
-            }
-
-            if (await fse.pathExists(cachePath)) {
-                this.imagePath = cachePath;
-                console.warn('[FileDom] Download failed, using cached image:', lastError);
-                return;
-            }
-            // 下载失败时兜底复用同 URL 已下载过的最新文件。对无扩展名/动态地址源，
-            // 之前每次下载都生成 <hash>-<timestamp><ext> 新文件，cachePath 永远不存在，
-            // 这里必须用 findCachedOnlineImage 才能命中旧的下载记录。
-            const fallback = findCachedOnlineImage(this.imagePath);
-            if (fallback) {
-                this.imagePath = fallback;
-                console.warn('[FileDom] Download failed, using latest cached image:', lastError);
-                return;
-            }
-            throw lastError || new BackgroundDownloadError('Failed to download image');
-        } catch (error) {
-            if (error instanceof BackgroundApplyCancelledError) {
-                throw error;
-            }
-            const downloadError = wrapDownloadError(error);
-            console.error('[FileDom] Failed to download image:', downloadError);
-            throw downloadError;
-        }
-    }
-
-    /**
-     * 流式计算文件内容哈希（sha256），用于动态在线源按内容去重。
-     * 用 sha256 而非 md5：成本几乎相同，但避免"内容寻址撞车导致显示错图"的理论风险。
-     * 读失败时返回 undefined，调用方退回按时间戳命名。
-     */
-    private hashFile(filePath: string): Promise<string | undefined> {
-        return new Promise(resolve => {
-            const hash = crypto.createHash('sha256');
-            const stream = fs.createReadStream(filePath);
-            stream.on('data', chunk => hash.update(chunk));
-            stream.on('error', () => resolve(undefined));
-            stream.on('end', () => resolve(hash.digest('hex')));
-        });
-    }
-
-    /**
-     * 刷新缓存文件的 mtime。pruneOnlineCache 按 mtime 淘汰最旧的文件，只有刷新
-     * 才能让淘汰按"最近使用"而不是"最近下载"，正在用的图就不会被清掉。
-     */
-    private async touchCacheFile(filePath: string): Promise<void> {
-        try {
-            const now = new Date();
-            await fse.utimes(filePath, now, now);
-        } catch {
-            // 刷新失败不影响使用
-        }
-    }
-
-    // 下载文件
-    private downloadFile(url: string, dest: string, redirectCount = 0): Promise<{ contentType?: string }> {
-        return new Promise((resolve, reject) => {
-            let urlObj: URL;
-            try {
-                urlObj = parseHttpUrl(url);
-            } catch (error) {
-                reject(wrapDownloadError(error));
-                return;
-            }
-
-            const headers = {
-                'User-Agent': DEFAULT_USER_AGENT,
-                'Accept': DEFAULT_ACCEPT_HEADER,
-                'Referer': `${urlObj.protocol}//${urlObj.host}/`,
-            } as Record<string, string>;
-
-            let settled = false;
-            const fail = (error: unknown, statusCode?: number) => {
-                if (settled) { return; }
-                settled = true;
-                clearTimeout(overallTimer);
-                reject(wrapDownloadError(error, statusCode));
-            };
-            const succeed = (value: { contentType?: string }) => {
-                if (settled) { return; }
-                settled = true;
-                clearTimeout(overallTimer);
-                resolve(value);
-            };
-
-            const protocolHandler = urlObj.protocol === 'https:' ? https : http;
-            const request = protocolHandler.request(urlObj, { method: 'GET', headers }, (response) => {
-                const statusCode = response.statusCode ?? 0;
-
-                if ([301, 302, 303, 307, 308].includes(statusCode)) {
-                    response.resume();
-                    const location = response.headers.location;
-                    if (!location) {
-                        fail(new Error(`Failed to download: ${statusCode}`), statusCode);
-                        return;
-                    }
-                    if (redirectCount >= MAX_REDIRECTS) {
-                        fail(new Error('Too many redirects'));
-                        return;
-                    }
-                    const nextUrl = new URL(location, urlObj).toString();
-                    // 交给下一跳自己的总超时；当前这一跳的计时器先停掉。
-                    settled = true;
-                    clearTimeout(overallTimer);
-                    this.downloadFile(nextUrl, dest, redirectCount + 1).then(resolve, reject);
-                    return;
-                }
-
-                if (statusCode !== 200) {
-                    response.resume();
-                    fail(new Error(`Failed to download: ${statusCode}`), statusCode);
-                    return;
-                }
-
-                const declared = Number(response.headers['content-length'] || 0);
-                if (declared > MAX_DOWNLOAD_BYTES) {
-                    response.destroy();
-                    fail(new Error('File too large'));
-                    return;
-                }
-
-                let received = 0;
-                const limiter = new Transform({
-                    transform(chunk: Buffer, _enc, cb) {
-                        received += chunk.length;
-                        if (received > MAX_DOWNLOAD_BYTES) {
-                            cb(new Error('File too large'));
-                            return;
-                        }
-                        cb(null, chunk);
-                    }
-                });
-                // pipeline 统一处理 response/写入流任一端的 error/aborted，并负责销毁两端，
-                // 避免连接中途断开时 Promise 永不 settle 把自动换图调度器卡死。
-                pipeline(response, limiter, fs.createWriteStream(dest), (err) => {
-                    if (err) {
-                        fs.unlink(dest, () => fail(err));
-                        return;
-                    }
-                    succeed({ contentType: response.headers['content-type'] as string | undefined });
-                });
-            });
-
-            // socket 空闲超时之外再加一道整体上限，慢速滴流也不会无限挂起。
-            const overallTimer = setTimeout(() => {
-                request.destroy(new Error('Download timeout'));
-            }, DOWNLOAD_TOTAL_TIMEOUT_MS);
-
-            request.on('timeout', () => {
-                request.destroy(new Error('Request timeout'));
-            });
-
-            request.on('error', (err) => {
-                fail(err);
-            });
-
-            request.setTimeout(15000);
-            request.end();
-        });
     }
 
     //应用补丁安装
@@ -944,7 +648,7 @@ export class FileDom {
             return true;
 
         } catch (error: any) {
-            if (error instanceof BackgroundApplyCancelledError || error instanceof BackgroundDownloadError) {
+            if (error instanceof BackgroundApplyCancelledError) {
                 throw error;
             }
             // 静默模式必须先于 handlePatchError 返回：后者是个 await 住的模态框，
@@ -2880,27 +2584,6 @@ export class FileDom {
             console.error('[FileDom] Failed to prepare code-server asset:', error);
             return undefined;
         }
-    }
-
-    private getExtensionFromContentType(contentType?: string): string | undefined {
-        if (!contentType) {
-            return undefined;
-        }
-        const cleanType = contentType.split(';')[0].trim().toLowerCase();
-        const map: Record<string, string> = {
-            'image/jpeg': '.jpg',
-            'image/jpg': '.jpg',
-            'image/png': '.png',
-            'image/gif': '.gif',
-            'image/webp': '.webp',
-            'image/bmp': '.bmp',
-            'image/svg+xml': '.svg',
-            'video/mp4': '.mp4',
-            'video/webm': '.webm',
-            'video/ogg': '.ogg',
-            'video/quicktime': '.mov'
-        };
-        return map[cleanType] || undefined;
     }
 
     private getRelativeAssetUrl(targetPath: string): string | undefined {

@@ -87,12 +87,6 @@ Module._load = function (request, parent) {
             }
         };
     }
-    if (request === './backgroundCoverView') {
-        return { BackgroundCoverViewProvider: class {} };
-    }
-    if (request === './onlineCache' && /[\\/]out[\\/]extension\.js$/.test(parent.filename)) {
-        return { pruneOnlineCache: async () => {} };
-    }
     return originalLoad.apply(this, arguments);
 };
 

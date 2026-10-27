@@ -82,10 +82,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue';
-import { Picture, Refresh, House, Folder, Promotion, Setting, MagicStick, Place, Brush } from '@element-plus/icons-vue';
+import { Picture, Refresh, House, Folder, Setting, MagicStick, Place, Brush } from '@element-plus/icons-vue';
 import HomeTab from './views/HomeTab.vue';
 import LocalGalleryTab from './views/LocalGalleryTab.vue';
-import OnlineGalleryTab from './views/OnlineGalleryTab.vue';
 import AdvancedTab from './views/AdvancedTab.vue';
 import DecorationTab from './views/DecorationTab.vue';
 import { useTheme } from './composables/useTheme';
@@ -157,7 +156,6 @@ function onLangChange(value: Locale) {
 const tabs = computed(() => [
     { key: 'home',       label: t('tabHome'),       icon: House },
     { key: 'local',      label: t('tabLocal'),      icon: Folder },
-    { key: 'online',     label: t('tabOnline'),     icon: Promotion },
     { key: 'advanced',   label: t('tabAdvanced'),   icon: Setting },
     { key: 'decoration', label: t('tabDecoration'), icon: MagicStick }
 ]);
@@ -165,7 +163,6 @@ const tabs = computed(() => [
 const views: Record<string, any> = {
     home: HomeTab,
     local: LocalGalleryTab,
-    online: OnlineGalleryTab,
     advanced: AdvancedTab,
     decoration: DecorationTab
 };
@@ -188,7 +185,7 @@ bridge.on('state', (data: any) => {
 bridge.on('navigate', (data: any) => {
     const t = data?.tab;
     // Map legacy tab names from extension to new keys
-    const map: Record<string, string> = { gallery: 'online', menu: 'home' };
+    const map: Record<string, string> = { menu: 'home' };
     const target = map[t] ?? t;
     if (target && views[target]) { active.value = target; }
 });

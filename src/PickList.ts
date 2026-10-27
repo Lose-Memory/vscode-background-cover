@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { URL } from 'url';
 import {
 	QuickPick,
 	Disposable,
@@ -14,20 +13,17 @@ import {
 	extensions,
 	InputBoxOptions,
 	ConfigurationTarget,
-    ProgressLocation,
     OutputChannel
 } from 'vscode';
 
 import { FileDom } from './FileDom';
-import { BackgroundPatchError, BackgroundApplyCancelledError, shouldTryNextAutoImage, pickUnusedCandidate } from './downloadError';
+import { BackgroundPatchError, BackgroundApplyCancelledError, pickUnusedCandidate } from './downloadError';
 import { ImgItem } from './ImgItem';
 import vsHelp from './vsHelp';
 import { getContext, onDidChangeGlobalState } from './global';
-import { getPersistedCurrentImage, hasCurrentImageRecord, isSingleSourceActive, resolveCurrentBlur, resolveCurrentImagePath, resolveCurrentOpacity, setCurrentBlur, setCurrentImagePath, setCurrentOpacity } from './windowBackground';
-import { delay, expandPathVariables, isOnlineUrl, isSupportedMedia, MEDIA_EXTS, pickRandomFromFolder } from './pathUtil';
+import { hasCurrentImageRecord, resolveCurrentBlur, resolveCurrentImagePath, resolveCurrentOpacity, setCurrentBlur, setCurrentImagePath, setCurrentOpacity } from './windowBackground';
+import { expandPathVariables, isSupportedMedia, MEDIA_EXTS, pickRandomFromFolder } from './pathUtil';
 import Color, { getColorList } from './color'; // 导入颜色定义
-import { OnlineImageHelper } from './OnlineImageHelper';
-import { getOnlineCacheDir } from './onlineCache';
 
 
 
@@ -47,11 +43,8 @@ export enum ActionType {
     OpenFilePath = 14,
     SizeModeMenu = 15,
     SetSizeMode = 16,
-    OnlineImages = 17,
     BackgroundBlur = 18,
-    RefreshOnlineFolder = 19,
     AutoRandomSettings = 20,
-    OpenCacheFolder = 21,
     SelectPet = 26,
     TogglePet = 27,
     
@@ -92,7 +85,6 @@ interface UpdateBackgroundOptions {
 }
 
 const AUTO_IMAGE_ATTEMPTS = 3;
-const ONLINE_LIST_FETCH_ATTEMPTS = 2;
 
 /** Single source of truth for available pets (used by PickList + FileDom + Studio webview). */
 export const PET_LIST: PetEntry[] = [
@@ -189,11 +181,9 @@ export class PickList {
     private config: WorkspaceConfiguration;
     private imgPath: string;
     private opacity: number;
-    private imageFileType: number;
     private sizeModel: string;
     private blur: number;
     private randUpdate: boolean = false;
-    private skipOnlineCache: boolean = false;
     private silentApply: boolean = false;
 
     // --- Static Entry Points ---
@@ -240,7 +230,6 @@ export class PickList {
         }
         PickList.itemList = new PickList(config);
         PickList.itemList.setRandUpdate(true);
-        PickList.itemList.setSkipOnlineCache(true);
         PickList.itemList.autoUpdateBackground();
         PickList.itemList = undefined;
     }
@@ -277,15 +266,11 @@ export class PickList {
                     return;
                 }
                 const cfg = workspace.getConfiguration('backgroundCover');
-                const context = getContext();
-                const hasOnlineFolder = context.globalState.get('backgroundCoverOnlineFolder');
-                const hasSingleSource = PickList.resolveSingleImageSource(cfg);
-                if (cfg.randomImageFolder || hasOnlineFolder || hasSingleSource) {
-                    PickList.logAutoRefresh(`Timer tick: starting refresh (singleSource=${!!hasSingleSource}, onlineFolder=${!!hasOnlineFolder}, configuredFolder=${!!cfg.randomImageFolder}).`);
+                if (cfg.randomImageFolder) {
+                    PickList.logAutoRefresh('Timer tick: starting refresh.');
                     PickList.isAutoRunning = true;
                     try {
                         const pl = new PickList(cfg);
-                        pl.setSkipOnlineCache(true);
                         await pl.autoUpdateBackground(false);
                         PickList.logAutoRefresh('Refresh cycle finished.');
                     } catch (err) {
@@ -295,7 +280,7 @@ export class PickList {
                         PickList.isAutoRunning = false;
                     }
                 } else {
-                    PickList.logAutoRefresh('Timer tick skipped: no active image source.');
+                    PickList.logAutoRefresh('Timer tick skipped: no image folder configured.');
                 }
             }, interval * 1000);
         }
@@ -307,23 +292,6 @@ export class PickList {
             getContext().subscriptions.push(PickList.autoRefreshOutput);
         }
         PickList.autoRefreshOutput.appendLine(`[${new Date().toISOString()}] ${message}`);
-    }
-
-    private static resolveSingleImageSource(config: WorkspaceConfiguration): string | undefined {
-        const context = getContext();
-        const recordedSource = context.globalState.get<string>('backgroundCoverSingleImageSource');
-        if (recordedSource && isSingleSourceActive(recordedSource)) {
-            return recordedSource;
-        }
-
-        // Startup restores the window image without recreating the legacy global
-        // source record. Another window can also replace that record. With no
-        // folder selected, use this window's persisted URL, not another window's.
-        if (config.get<string>('randomImageFolder') || context.globalState.get('backgroundCoverOnlineFolder')) {
-            return undefined;
-        }
-        const currentImage = getPersistedCurrentImage(config.get<string>('imagePath') || '');
-        return isOnlineUrl(currentImage) ? currentImage : undefined;
     }
 
     public static stopAutoRandomTask() {
@@ -341,45 +309,6 @@ export class PickList {
         list.totalSteps = 2;
         PickList.itemList = new PickList(config, list);
         PickList.itemList.particleEffectSettings();
-    }
-
-    public static async updateImgPath(path: string) {
-        if (!isOnlineUrl(path)) {
-            vsHelp.showInfo("非http/https格式图片，不支持配置！ / Non HTTP/HTTPS format image, configuration not supported!");
-            return false;
-        }
-        await window.withProgress({
-            location: ProgressLocation.Notification,
-            title: "正在检测在线资源类型... / Detecting online resource type...",
-            cancellable: false
-        }, async () => {
-            try {
-                const images = await OnlineImageHelper.getOnlineImages(path);
-                const config = workspace.getConfiguration('backgroundCover');
-                PickList.itemList = new PickList(config);
-                PickList.itemList.setImageFileType(2);
-                
-                if (images && images.length > 1) {
-                    window.showInformationMessage(`检测到在线文件夹，包含 ${images.length} 张图片！将随机选择一张作为背景。`);
-                    const context = getContext();
-                    context.globalState.update('backgroundCoverOnlineFolder', path);
-                    context.globalState.update('backgroundCoverOnlineImageList', images);
-                    await config.update('randomImageFolder', path, ConfigurationTarget.Global);
-                    const randomImage = images[Math.floor(Math.random() * images.length)];
-                    PickList.itemList.updateBackgound(randomImage);
-                } else {
-                    // window.showInformationMessage('检测到单张在线图片！');
-                    const actualImage = (images && images.length > 0) ? images[0] : path;
-                    PickList.itemList.updateBackgound(actualImage, true);
-                }
-            } catch (error: any) {
-                window.showErrorMessage(`在线资源检测失败: ${error.message}`);
-                const config = workspace.getConfiguration('backgroundCover');
-                PickList.itemList = new PickList(config);
-                PickList.itemList.setImageFileType(2);
-                PickList.itemList.updateBackgound(path, true);
-            }
-        });
     }
 
     public static gotoFilePath(path?: string) {
@@ -405,7 +334,6 @@ export class PickList {
         // 保证预览滑块起点与最终写入的 CSS 一致。
         this.opacity = resolveCurrentOpacity(config.opacity);
         this.sizeModel = config.sizeModel || 'cover';
-        this.imageFileType = 0;
         this.blur = resolveCurrentBlur(config.blur);
 
         if (pickList) {
@@ -439,11 +367,8 @@ export class PickList {
             case ActionType.OpenExternalUrl: this.gotoPath(path); break;
             case ActionType.OpenFilePath: PickList.gotoFilePath(path); break;
             case ActionType.SetSizeMode: this.setSizeModel(path); break;
-            case ActionType.OnlineImages: commands.executeCommand('workbench.view.extension.backgroundCover-explorer'); break;
             case ActionType.BackgroundBlur: this.showBlurSlider(); break;
-            case ActionType.RefreshOnlineFolder: await this.refreshOnlineFolder(); break;
             case ActionType.AutoRandomSettings: this.showInputBox(InputType.AutoRandomSettings); break;
-            case ActionType.OpenCacheFolder: this.openCacheFolder(); break;
             
             // Particle Effects
             case ActionType.ParticleSettings: this.particleEffectSettings(); break;
@@ -564,49 +489,7 @@ export class PickList {
 
     private async autoUpdateBackground(persist: boolean = true): Promise<boolean> {
         this.silentApply = !persist;
-        const context = getContext();
-        const onlineFolder = context.globalState.get<string>('backgroundCoverOnlineFolder');
-        const cachedImages = context.globalState.get<string[]>('backgroundCoverOnlineImageList');
-        
-        if (onlineFolder && isOnlineUrl(onlineFolder)) {
-            try {
-                let images = cachedImages as string[] | undefined;
-                if (!images || images.length === 0) {
-                    images = await this.fetchOnlineImageList(onlineFolder, persist);
-                }
-                if (images && images.length > 0) {
-                    if (!persist) {
-                        return await this.applyAutoCandidates(images, persist);
-                    }
-                    const randomImage = images[Math.floor(Math.random() * images.length)];
-                    await this.updateBackgound(randomImage, false, persist, { skipLargeImagePrompt: true });
-                    return true;
-                }
-            } catch (error: any) {
-                console.error('从在线文件夹获取图片失败:', error);
-                if (error instanceof BackgroundApplyCancelledError || error instanceof BackgroundPatchError) {
-                    return false;
-                }
-                if (persist) {
-                    window.showWarningMessage('在线文件夹访问失败，请检查网络连接！');
-                }
-            }
-        }
-
-        // An active online source takes precedence over a previously configured folder.
-        // Selecting a local folder clears the single-source record; a leftover folder
-        // setting alone must not prevent a random image API from refreshing.
-        const randomImageFolderCfg = this.config.get<string>('randomImageFolder');
-        const singleSource = PickList.resolveSingleImageSource(this.config);
-        if (singleSource) {
-            if (!persist) {
-                return await this.applyAutoCandidates([singleSource], persist);
-            }
-            await this.updateBackgound(singleSource, false, persist, { skipLargeImagePrompt: true });
-            return true;
-        }
-
-        const randomImageFolder = this.resolveRandomFolder(randomImageFolderCfg);
+        const randomImageFolder = this.resolveRandomFolder(this.config.get<string>('randomImageFolder'));
         if (randomImageFolder) {
             const files = this.getFolderImgList(randomImageFolder).map(file => path.join(randomImageFolder, file));
             if (files.length > 0) {
@@ -614,32 +497,10 @@ export class PickList {
                     return await this.applyAutoCandidates(files, persist);
                 }
                 const randomFile = files[Math.floor(Math.random() * files.length)];
-                await this.updateBackgound(randomFile, false, persist, { skipLargeImagePrompt: true });
+                await this.updateBackgound(randomFile, persist, { skipLargeImagePrompt: true });
             }
         }
         return true;
-    }
-
-    private async fetchOnlineImageList(onlineFolder: string, persist: boolean): Promise<string[] | undefined> {
-        const attempts = persist ? 1 : ONLINE_LIST_FETCH_ATTEMPTS;
-        for (let i = 0; i < attempts; i++) {
-            if (i > 0) {
-                await delay(500);
-            }
-            if (persist && i === 0) {
-                window.showInformationMessage('正在从在线文件夹获取图片列表...');
-            }
-            try {
-                const images = await OnlineImageHelper.getOnlineImages(onlineFolder);
-                if (images && images.length > 0) {
-                    getContext().globalState.update('backgroundCoverOnlineImageList', images);
-                    return images;
-                }
-            } catch (error) {
-                console.error('[BackgroundCover] Failed to fetch online image list:', error);
-            }
-        }
-        return undefined;
     }
 
     private async applyAutoCandidates(candidates: string[], persist: boolean): Promise<boolean> {
@@ -651,97 +512,21 @@ export class PickList {
             }
             tried.add(next);
             try {
-                await this.updateBackgound(next, false, persist, { skipLargeImagePrompt: true });
+                await this.updateBackgound(next, persist, { skipLargeImagePrompt: true });
                 return true;
             } catch (error) {
                 if (error instanceof BackgroundApplyCancelledError || error instanceof BackgroundPatchError) {
                     return false;
                 }
                 console.error('[BackgroundCover] Auto image update failed:', error);
-                if (!shouldTryNextAutoImage(error)) {
-                    return false;
-                }
+                return false;
             }
         }
         window.setStatusBarMessage('自动换图失败，将在下个间隔再试 / Auto background update failed, will retry next interval.', 5000);
         return false;
     }
 
-    private openCacheFolder() {
-        const cacheDir = getOnlineCacheDir();
-        // 确保目录存在
-        if (!fs.existsSync(cacheDir)) {
-            fs.mkdirSync(cacheDir, { recursive: true });
-        }
-        env.openExternal(Uri.file(cacheDir));
-    }
 
-    private async refreshOnlineFolder() {
-        const context = getContext();
-        const onlineFolder = context.globalState.get<string>('backgroundCoverOnlineFolder');
-        if (!onlineFolder) {
-            window.showWarningMessage('未找到在线文件夹配置！');
-            return;
-        }
-        let success = false;
-        try {
-            window.showInformationMessage('正在刷新在线文件夹图片列表...');
-            const images = await OnlineImageHelper.getOnlineImages(onlineFolder);
-            if (images && images.length > 0) {
-                const normalizedFolder = this.normalizePathKey(onlineFolder);
-                if (images.length === 1 && this.normalizePathKey(images[0]) === normalizedFolder) {
-                    window.showInformationMessage('检测到链接仅返回单张图片，已切换为单图模式。');
-                    this.updateBackgound(images[0], true);
-                    success = true;
-                } else {
-                    context.globalState.update('backgroundCoverOnlineImageList', images);
-                    window.showInformationMessage(`刷新成功！发现 ${images.length} 张图片。`);
-                    const randomImage = images[Math.floor(Math.random() * images.length)];
-                    this.updateBackgound(randomImage);
-                    success = true;
-                }
-            } else {
-                window.showWarningMessage('未在该URL找到图片！');
-                this.clearOnlineFolder(true);
-            }
-        } catch (error: any) {
-            window.showErrorMessage(`刷新失败: ${error.message}`);
-            this.clearOnlineFolder(true);
-        }
-        if (success) { this.quickPick.hide(); }
-    }
-
-    private clearOnlineFolder(resetRandomFolder: boolean = false) {
-        const context = getContext();
-        const previousOnlineFolder = context.globalState.get<string>('backgroundCoverOnlineFolder');
-        context.globalState.update('backgroundCoverOnlineFolder', undefined);
-        context.globalState.update('backgroundCoverOnlineImageList', undefined);
-        if (resetRandomFolder && previousOnlineFolder) {
-            const currentRandomFolder = this.config.get<string>('randomImageFolder');
-            if (this.normalizePathKey(currentRandomFolder) === this.normalizePathKey(previousOnlineFolder)) {
-                this.config.update('randomImageFolder', '', ConfigurationTarget.Global);
-            }
-        }
-    }
-
-    private normalizePathKey(value?: string | null): string {
-        if (!value) { return ''; }
-        const trimmed = value.trim();
-        if (/^https?:/i.test(trimmed)) {
-            try {
-                const parsed = new URL(trimmed);
-                const normalizedPath = parsed.pathname.replace(/\/+$/, '') || '/';
-                const search = parsed.search ?? '';
-                return `${parsed.protocol}//${parsed.host}${normalizedPath}${search}`;
-            } catch {
-                return trimmed.replace(/\/+$/, '');
-            }
-        }
-        return path.normalize(trimmed).replace(/\\+/g, '/');
-    }
-
-
-    /** Push a path to the front of the recent-used list (globalState), keep at most 5. */
     private pushRecentImage(filePath: string): void {
         try {
             if (!filePath) { return; }
@@ -933,8 +718,8 @@ export class PickList {
 
         switch (type) {
             case InputType.Path:
-                placeString = 'Please enter the image path to support local and HTTPS';
-                promptString = '输入图片路径：支持本地/https/json(api接口)/html(解析a标签)/在线图库（帖子地址）';
+                placeString = 'Please enter the image file or folder path';
+                promptString = '输入图片或目录路径：支持 ~ / ${ENV} 变量，目录会随机取一张图片';
                 break;
             case InputType.Opacity:
                 placeString = 'Opacity ranges：0.00 - 1,current:(' + this.opacity + ')';
@@ -975,56 +760,13 @@ export class PickList {
             return false;
         }
 
-        let shouldClearOnlineCache = false;
-
         if (type === InputType.Path) {
-            const isUrl = isOnlineUrl(value);
-            if (!isUrl) {
-                // A3: 展开 ~ / ${ENV} / $ENV；无扩展名的本地路径按文件夹处理，随机取一张
-                value = expandPathVariables(value);
-                const folderPicked = pickRandomFromFolder(value);
-                if (folderPicked) { value = folderPicked; }
-            }
-            const fsStatus = fs.existsSync(path.resolve(value));
-            if (!fsStatus && !isUrl) {
+            value = expandPathVariables(value);
+            const folderPicked = pickRandomFromFolder(value);
+            if (folderPicked) { value = folderPicked; }
+            if (!fs.existsSync(path.resolve(value))) {
                 window.showWarningMessage('No access to the file or the file does not exist! / 无权限访问文件或文件不存在！');
                 return false;
-            }
-            if (!isUrl) { shouldClearOnlineCache = true; }
-
-            if (isUrl) {
-                let shouldReturn = false;
-                await window.withProgress({
-                    location: ProgressLocation.Notification,
-                    title: "正在检测在线资源类型... / Detecting online resource type...",
-                    cancellable: false
-                }, async () => {
-                    try {
-                        const images = await OnlineImageHelper.getOnlineImages(value!);
-                        if (images && images.length > 1) {
-                            const config = workspace.getConfiguration('backgroundCover');
-                            PickList.itemList = new PickList(config);
-                            PickList.itemList.setImageFileType(2);
-                            const context = getContext();
-                            await context.globalState.update('backgroundCoverOnlineFolder', value);
-                            await context.globalState.update('backgroundCoverOnlineImageList', images);
-                            await config.update('randomImageFolder', value, ConfigurationTarget.Global);
-                            const randomImage = images[Math.floor(Math.random() * images.length)];
-                            PickList.itemList.updateBackgound(randomImage);
-                            shouldReturn = true;
-                        } else if (images && images.length === 1) {
-                            value = images[0];
-                            shouldClearOnlineCache = true;
-                        }
-                    } catch (err: any) {
-                        console.error('[background-cover] OnlineImageHelper error:', err && err.message ? err.message : err);
-                        window.showWarningMessage('在线资源检测失败，按单张图片处理 / Online detection failed, treating as single image');
-                        shouldClearOnlineCache = true;
-                    }
-                });
-                if (shouldReturn) { return true; }
-            } else {
-                shouldClearOnlineCache = true;
             }
         } else if (type === InputType.Opacity) {
             const isOpacity = parseFloat(value);
@@ -1063,12 +805,8 @@ export class PickList {
             }
         }
 
-        if (type === InputType.Path && shouldClearOnlineCache) {
-            this.clearOnlineFolder(true);
-        }
-
         if (type === InputType.Path) {
-            return this.updateBackgound(value, shouldClearOnlineCache);
+            return this.updateBackgound(value);
         } else if (type === InputType.ParticleCount) {
             this.setContextValue('backgroundCoverParticleCount', parseInt(value), true);
         } else if (type === InputType.ParticleColor) {
@@ -1082,11 +820,7 @@ export class PickList {
         } else if (type === InputType.AutoRandomSettings) {
             const interval = parseInt(value);
             if (interval > 0) {
-                const context = getContext();
-                const hasRandomFolder = this.config.get('randomImageFolder');
-                const hasOnlineFolder = context.globalState.get('backgroundCoverOnlineFolder');
-                const hasSingleSource = context.globalState.get('backgroundCoverSingleImageSource');
-                if (!hasRandomFolder && !hasOnlineFolder && !hasSingleSource) {
+                if (!this.config.get('randomImageFolder')) {
                     window.showWarningMessage('Please add a directory first! / 请先添加目录！');
                     return false;
                 }
@@ -1105,13 +839,8 @@ export class PickList {
         await this.setConfigValue('sizeModel', value, true);
     }
 
-    public setImageFileType(value: number) {
-        this.imageFileType = value;
-    }
-
     public async updateBackgound(
         path?: string,
-        clearOnlineCache: boolean = false,
         persist: boolean = true,
         options: UpdateBackgroundOptions = {}
     ) {
@@ -1122,7 +851,7 @@ export class PickList {
         // they don't get blindsided by a multi-second freeze on manual switch.
         // Automated random updates must not wait on a modal prompt, otherwise the
         // scheduler can get stuck behind an unattended large-image confirmation.
-        if (persist && !options.skipLargeImagePrompt && !isOnlineUrl(path)) {
+        if (persist && !options.skipLargeImagePrompt) {
             const proceed = await this.confirmLargeLocalImage(path);
             if (!proceed) { return false; }
         }
@@ -1130,10 +859,7 @@ export class PickList {
         // Record into the most-recently-used list (for QuickPick reordering).
         if (persist) { this.pushRecentImage(path); }
 
-        if (clearOnlineCache || !isOnlineUrl(path)) {
-            this.clearOnlineFolder(true);
-        }
-        const shouldDisableAuto = persist && clearOnlineCache && this.isSingleImagePath(path);
+        const shouldDisableAuto = persist && this.isSingleImagePath(path);
         await this.setConfigValue('imagePath', path, true, persist);
         if (shouldDisableAuto) {
             await this.disableAutoRandomForSingleImage();
@@ -1176,14 +902,11 @@ export class PickList {
         if (!folderUris) { return false; }
         const fileUri = folderUris[0];
         if (type === 2) {
-            this.clearOnlineFolder(true);
             await this.setConfigValue('randomImageFolder', fileUri.fsPath, false);
-            await getContext().globalState.update('backgroundCoverSingleImageSource', undefined);
             return true;
         }
         if (type === 1) {
-            this.clearOnlineFolder(true);
-            return this.updateBackgound(fileUri.fsPath, true);
+            return this.updateBackgound(fileUri.fsPath);
         }
         return false;
     }
@@ -1193,15 +916,6 @@ export class PickList {
             const nextPath = typeof value === 'string' ? value : '';
             const previousPath = this.imgPath;
             this.imgPath = nextPath;
-
-            // Automatic rotation is window-local and must not overwrite or clear
-            // another window's legacy source record.
-            if (persist) {
-                const context = getContext();
-                const hasOnlineFolder = context.globalState.get('backgroundCoverOnlineFolder');
-                const singleSource = nextPath && isOnlineUrl(nextPath) && !hasOnlineFolder ? nextPath : undefined;
-                await context.globalState.update('backgroundCoverSingleImageSource', singleSource);
-            }
 
             // 先应用再记录：静默自动换图失败时 updateDom 会抛，此时这张图不该被
             // 记成当前背景，否则重试完三张候选后留下的"当前图"是最后一张失败的地址。
@@ -1272,10 +986,6 @@ export class PickList {
         this.randUpdate = value;
     }
 
-    public setSkipOnlineCache(value: boolean) {
-        this.skipOnlineCache = value;
-    }
-
     private async updateDom(uninstall: boolean = false): Promise<boolean> {
         // A4: 混合模式不再在扩展侧解析。auto 由注入 CSS 的变量 + :has() 即时适配主题，
         // 显式 multiply/lighten 直接写死。这里只把用户选择的模式传给 FileDom 生成 CSS。
@@ -1283,7 +993,7 @@ export class PickList {
 
         const seq = ++PickList._updateSeq;
         const isCurrentUpdate = () => seq === PickList._updateSeq;
-        const dom = new FileDom(this.config, this.imgPath, this.opacity, this.sizeModel, this.blur, colorThemeKind, this.skipOnlineCache, isCurrentUpdate, this.silentApply);
+        const dom = new FileDom(this.config, this.imgPath, this.opacity, this.sizeModel, this.blur, colorThemeKind, isCurrentUpdate, this.silentApply);
         let result = false;
 
         try {
@@ -1343,15 +1053,6 @@ export class PickList {
                     this.quickPick.ignoreFocusOut = true;
                     this.quickPick.show();
                 } else {
-                    if (this.imageFileType === 2) {
-                        const value = await window.showInformationMessage(
-                            `"${this.imgPath}" | Reloading takes effect? / 重新加载生效？`,
-                            'YES', 'NO'
-                        );
-                        if (value === 'YES') {
-                            await commands.executeCommand('workbench.action.reloadWindow');
-                        }
-                    }
                     if (this.randUpdate) {
                         window.showInformationMessage(`背景将在1秒后自动更新！ / The background will be automatically updated in 1 second!`);
                         await new Promise((resolve) => setTimeout(resolve, 1000));

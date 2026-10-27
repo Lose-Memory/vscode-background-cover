@@ -2,7 +2,6 @@ import * as crypto from 'crypto';
 import * as path from 'path';
 import { ConfigurationTarget, env, workspace, WorkspaceConfiguration } from 'vscode';
 import { getContext, onDidChangeGlobalState } from './global';
-import { isOnlineUrl } from './pathUtil';
 
 const WINDOW_IMAGES_KEY = 'backgroundCover.windowImages';
 const WORKSPACE_IMAGES_KEY = 'backgroundCover.workspaceImages';
@@ -142,14 +141,6 @@ export function resolveCurrentImagePath(globalFallback?: string): string {
  * 换图时它会把本地 randomImageFolder 短路成"每轮重下同一张在线图"，图片
  * 永远不会变，因此陈旧记录必须被识别并清理。
  */
-export function isSingleSourceActive(singleSource: string | undefined): boolean {
-    if (!singleSource || !isOnlineUrl(singleSource)) {
-        return false;
-    }
-    const settingsFallback = workspace.getConfiguration('backgroundCover').get<string>('imagePath') || '';
-    return getPersistedCurrentImage(settingsFallback) === singleSource;
-}
-
 export interface SetImageOptions {
     /** false 表示只更新当前窗口的内存态(定时自动换图)，不写入 globalState。 */
     persist?: boolean;

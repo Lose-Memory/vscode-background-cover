@@ -38,21 +38,6 @@
                     <el-icon><ArrowRight /></el-icon>
                 </el-button>
             </div>
-
-            <div class="row">
-                <span class="row-label">{{ t('cacheLimit') }}</span>
-                <el-input-number
-                    :model-value="Number(config.cacheLimit ?? DEFAULT_CACHE_LIMIT)"
-                    :min="10"
-                    :max="10000"
-                    :step="50"
-                    size="small"
-                    controls-position="right"
-                    class="interval-input"
-                    @change="onCacheLimitChange"
-                />
-            </div>
-            <div class="row-hint">{{ t('cacheLimitHint') }}</div>
         </el-card>
 
         <!-- Window scope -->
@@ -114,10 +99,6 @@
         <!-- Misc -->
         <el-card class="card" shadow="never">
             <div class="quick-actions">
-                <el-button class="block-btn" @click="onOpenCache">
-                    <el-icon><FolderOpened /></el-icon>
-                    {{ t('openCacheFolder') }}
-                </el-button>
                 <el-button class="block-btn" type="danger" plain @click="onSupport">
                     <el-icon><Star /></el-icon>
                     {{ t('supportAuthor') }}
@@ -129,12 +110,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Refresh, ArrowRight, FullScreen, Brush, FolderOpened, Star, Monitor } from '@element-plus/icons-vue';
+import { Refresh, ArrowRight, FullScreen, Brush, Star, Monitor } from '@element-plus/icons-vue';
 import { useI18n, type MessageKey } from '../composables/useI18n';
 import { useBridge } from '../composables/useBridge';
 import { useDebouncedPost } from '../composables/useDebouncedPost';
 import { config } from '../composables/useStore';
-import { ActionType, SIZE_MODES, BLEND_MODES, DEFAULT_CACHE_LIMIT } from '../constants';
+import { ActionType, SIZE_MODES, BLEND_MODES } from '../constants';
 
 const { t } = useI18n();
 const bridge = useBridge();
@@ -172,13 +153,6 @@ function onIntervalChange(v: number | undefined) {
     intervalPost.post(value);
 }
 
-const cacheLimitPost = useDebouncedPost('setConfig', 'cacheLimit', { delay: 300 });
-function onCacheLimitChange(v: number | undefined) {
-    const value = Number(v ?? DEFAULT_CACHE_LIMIT);
-    config.cacheLimit = value;
-    cacheLimitPost.post(value);
-}
-
 const sizeModeOptions = computed(() => SIZE_MODES.map((value) => ({
     value,
     label: t(SIZE_MODE_LABEL_KEYS[value] ?? 'sizeModeCover')
@@ -189,7 +163,6 @@ const blendModeOptions = computed(() => BLEND_MODES.map((value) => ({
 })));
 
 function onSourceFolder() { bridge.post({ type: 'runAction', action: ActionType.AddDirectory }); }
-function onOpenCache()    { bridge.post({ type: 'runAction', action: ActionType.OpenCacheFolder }); }
 function onSupport()      { bridge.post({ type: 'runAction', action: ActionType.OpenFilePath, path: '//resources//support.jpg' }); }
 </script>
 

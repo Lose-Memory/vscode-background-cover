@@ -2,7 +2,6 @@ export default {
     appTitle:          '背景封面工作室',
     tabHome:           '首页',
     tabLocal:          '本地',
-    tabOnline:         '在线',
     tabAdvanced:       '高级',
     tabDecoration:     '装饰',
 
@@ -16,7 +15,6 @@ export default {
 
     localGallery:      '本地图库',
     recentImages:      '最近使用',
-    onlineGallery:     '在线图库',
     addDirectory:      '添加目录',
     inputPath:         '输入 URL',
     emptyRecent:       '还没有最近使用的图片 — 选一张开始吧。',
@@ -24,10 +22,6 @@ export default {
     clearRecentConfirm: '确定清除最近使用记录吗？',
     confirm:           '确定',
     cancel:            '取消',
-    openOnlineInBrowser: '浏览器打开',
-    refreshOnline:     '刷新',
-    loadOnlineGallery: '加载在线图库',
-    loadOnlineGalleryHint: '按需加载，避免每次打开面板都请求在线图片',
 
     autoRandom:        '自动随机',
     enabled:           '启用',
@@ -39,7 +33,6 @@ export default {
     windowScope:       '窗口背景',
     perWindowBackground:     '每个窗口独立',
     perWindowBackgroundHint: '开启后各窗口可显示不同背景；关闭则所有窗口共用同一张',
-    openCacheFolder:   '打开缓存目录',
 
     petAssistant:      '顶部小宠物',
     enablePet:         '启用宠物',
@@ -80,8 +73,6 @@ export default {
     presetColors:         '预设颜色',
     customColor:          '自定义颜色',
     intervalSeconds:      '间隔（秒）',
-    cacheLimit:           '图片缓存上限（个）',
-    cacheLimitHint:       '在线图片缓存文件个数上限，超出后自动清理最旧的文件。防止无扩展名在线源长期自动换图导致磁盘占用无限增长',
     applyChanges:         '重启窗口生效',
     applyChangesHint:     '本部分功能修改后需重启窗口才能生效，修改完成后请点击下方按钮',
 
@@ -103,7 +94,6 @@ export default {
     themeOverwatchShort:    '守望',
     logoAlt:                '扩展图标',
     previewAlt:             '当前背景预览',
-    onlineGalleryFrameTitle: '在线图库',
     thumbSelectLabel:       '设为背景：{name}',
     videoThumbLabel:        '视频：{name}'
 };
