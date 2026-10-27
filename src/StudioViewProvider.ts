@@ -16,9 +16,7 @@ import {
 } from 'vscode';
 import { PickList, getAllPets } from './PickList';
 import { onDidChangeGlobalState } from './global';
-import { getColorEntries } from './color';
 import { resolveCurrentBlur, resolveCurrentImagePath, resolveCurrentOpacity } from './windowBackground';
-import { DEFAULT_PARTICLE_FPS } from './ParticleEffect';
 import { expandPathVariables } from './pathUtil';
 
 const PUSH_DEBOUNCE_MS = 120;
@@ -26,12 +24,7 @@ const PUSH_DEBOUNCE_MS = 120;
 const DECORATION_STATE_KEYS = [
     'backgroundCoverPetEnabled',
     'backgroundCoverPetType',
-    'backgroundCoverPetMessages',
-    'backgroundCoverParticleEffect',
-    'backgroundCoverParticleColor',
-    'backgroundCoverParticleCount',
-    'backgroundCoverParticleOpacity',
-    'backgroundCoverParticleFps'
+    'backgroundCoverPetMessages'
 ];
 
 /** globalState keys the webview may write directly via `setGlobalState`. */
@@ -167,8 +160,6 @@ export class StudioViewProvider implements WebviewViewProvider {
             return { value: p.value, label: p.label, desc: p.desc, thumb };
         });
 
-        const colorPalette = getColorEntries();
-
         let brandLogo = '';
         try {
             const logoUri = Uri.joinPath(this.ctx.extensionUri, 'resources', 'background-cover.png');
@@ -203,16 +194,10 @@ export class StudioViewProvider implements WebviewViewProvider {
                     petEnabled: gs.get('backgroundCoverPetEnabled') ?? false,
                     petType: gs.get('backgroundCoverPetType') ?? '',
                     petMessages: gs.get('backgroundCoverPetMessages') ?? '',
-                    particleEffect: gs.get('backgroundCoverParticleEffect') ?? false,
-                    particleColor: gs.get('backgroundCoverParticleColor') ?? '#ffffff',
-                    particleCount: gs.get('backgroundCoverParticleCount') ?? 60,
-                    particleOpacity: gs.get('backgroundCoverParticleOpacity') ?? 0.5,
-                    particleFps: gs.get('backgroundCoverParticleFps') ?? DEFAULT_PARTICLE_FPS,
                     recentImages,
                     folderImages,
                     folderImagesTotal,
-                    pets,
-                    colorPalette
+                    pets
                 }
             }
         });

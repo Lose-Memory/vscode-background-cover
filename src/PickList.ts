@@ -23,7 +23,6 @@ import vsHelp from './vsHelp';
 import { getContext, onDidChangeGlobalState } from './global';
 import { hasCurrentImageRecord, resolveCurrentBlur, resolveCurrentImagePath, resolveCurrentOpacity, setCurrentBlur, setCurrentImagePath, setCurrentOpacity } from './windowBackground';
 import { expandPathVariables, isSupportedMedia, MEDIA_EXTS, pickRandomFromFolder } from './pathUtil';
-import Color, { getColorList } from './color'; // 导入颜色定义
 
 
 
@@ -46,16 +45,7 @@ export enum ActionType {
     BackgroundBlur = 18,
     AutoRandomSettings = 20,
     SelectPet = 26,
-    TogglePet = 27,
-    
-    // Particle Effects
-    ParticleSettings = 30,
-    ToggleParticle = 31,
-    ParticleOpacity = 32,
-    ParticleColor = 33,
-    ParticleCount = 34,
-    SetParticleColor = 101,
-    InputParticleColor = 102
+    TogglePet = 27
 }
 
 // Input Types Enum
@@ -63,10 +53,7 @@ enum InputType {
     Path = 1,
     Opacity = 2,
     Blur = 3,
-    AutoRandomSettings = 4,
-    ParticleOpacity = 10,
-    ParticleColor = 11,
-    ParticleCount = 12
+    AutoRandomSettings = 4
 }
 
 export interface PetEntry {
@@ -302,15 +289,6 @@ export class PickList {
         }
     }
 
-    public static startNest() {
-        const config = workspace.getConfiguration('backgroundCover');
-        const list = window.createQuickPick<ImgItem>();
-        list.placeholder = 'Please choose configuration! / 请选择相关配置！';
-        list.totalSteps = 2;
-        PickList.itemList = new PickList(config, list);
-        PickList.itemList.particleEffectSettings();
-    }
-
     public static gotoFilePath(path?: string) {
         if (path == undefined) {
             return window.showWarningMessage('无效菜单');
@@ -369,16 +347,7 @@ export class PickList {
             case ActionType.SetSizeMode: this.setSizeModel(path); break;
             case ActionType.BackgroundBlur: this.showBlurSlider(); break;
             case ActionType.AutoRandomSettings: this.showInputBox(InputType.AutoRandomSettings); break;
-            
-            // Particle Effects
-            case ActionType.ParticleSettings: this.particleEffectSettings(); break;
-            case ActionType.ToggleParticle: this.toggleParticleEffect(); break;
-            case ActionType.ParticleOpacity: this.showInputBox(InputType.ParticleOpacity); break;
-            case ActionType.ParticleColor: this.showColorSelection(); break;
-            case ActionType.ParticleCount: this.showInputBox(InputType.ParticleCount); break;
-            case ActionType.SetParticleColor: if (path) { this.setContextValue('backgroundCoverParticleColor', Color(path), true); } break;
-            case ActionType.InputParticleColor: this.showInputBox(InputType.ParticleColor); break;
-            
+
             // Pet Assistant
             case ActionType.SelectPet: path ? this.selectPet(path) : this.showPetSelection(); break;
             case ActionType.TogglePet: this.togglePet(); break;
@@ -435,48 +404,6 @@ export class PickList {
     private gotoPath(path?: string) {
         if (path == undefined) { return window.showWarningMessage('无效菜单'); }
         env.openExternal(Uri.parse(path));
-    }
-
-    public getParticleEffectMenuItems(): ImgItem[] {
-        const enabled = getContext().globalState.get('backgroundCoverParticleEffect', false);
-        return [
-            {
-                label: enabled ? '$(circle-filled) Disable Particles' : '$(circle-outline) Enable Particles',
-                detail: enabled ? '关闭粒子效果' : '启用粒子效果',
-                imageType: ActionType.ToggleParticle
-            },
-            { label: '$(settings) Particle Opacity', detail: '设置粒子透明度', imageType: ActionType.ParticleOpacity },
-            { label: '$(symbol-color) Select Color', detail: '选择粒子颜色', imageType: ActionType.ParticleColor },
-            { label: '$(multiple-windows) Particle Count', detail: '设置粒子数量', imageType: ActionType.ParticleCount },
-        ];
-    }
-
-    public particleEffectSettings() {
-        this.showSubMenu(this.getParticleEffectMenuItems());
-    }
-
-    private toggleParticleEffect() {
-        const currentValue = getContext().globalState.get('backgroundCoverParticleEffect', false);
-        this.setContextValue('backgroundCoverParticleEffect', !currentValue, true);
-    }
-
-    public getColorSelectionItems(): ImgItem[] {
-        const items: ImgItem[] = [];
-        items.push({ label: '$(pencil) Custom Color', detail: '输入自定义RGB颜色 (例如: 255,255,255)', imageType: ActionType.InputParticleColor });
-        
-        const colorList = getColorList();
-        for (const colorName of colorList) {
-            items.push({
-                label: `$(symbol-color) ${colorName}`,
-                imageType: ActionType.SetParticleColor,
-                path: colorName
-            });
-        }
-        return items;
-    }
-
-    private showColorSelection() {
-        this.showSubMenu(this.getColorSelectionItems());
     }
 
     private dispose() {
@@ -712,7 +639,6 @@ export class PickList {
     }
 
     private async showInputBox(type: InputType) {
-        const context = getContext();
         let placeString = '';
         let promptString = '';
 
@@ -732,18 +658,6 @@ export class PickList {
             case InputType.AutoRandomSettings:
                 placeString = 'Auto update current:(' + this.config.get('autoInterval', 0) + ')';
                 promptString = '设置自动更换间隔(秒)，0表示关闭自动定时更换 / Set interval (0 to disable)';
-                break;
-            case InputType.ParticleOpacity:
-                placeString = 'Particle opacity (0.1 - 1),current:(' + context.globalState.get("backgroundCoverParticleOpacity") + ')';
-                promptString = '粒子透明度 (0.1 - 1),当前值：' + context.globalState.get("backgroundCoverParticleOpacity");
-                break;
-            case InputType.ParticleColor:
-                placeString = 'Particle color (e.g.:255,255,255),current:(' + context.globalState.get("backgroundCoverParticleColor") + ')';
-                promptString = '粒子颜色 (例如:255,255,255),当前值：' + context.globalState.get("backgroundCoverParticleColor");
-                break;
-            case InputType.ParticleCount:
-                placeString = 'Particle count (1 - 200),current:(' + context.globalState.get("backgroundCoverParticleCount") + ')';
-                promptString = '粒子数量 (1 - 200),当前值：' + context.globalState.get("backgroundCoverParticleCount");
                 break;
         }
 
@@ -786,33 +700,10 @@ export class PickList {
                 window.showWarningMessage('Interval must be >= 0!');
                 return false;
             }
-        } else if (type === InputType.ParticleOpacity) {
-            const particleOpacity = parseFloat(value);
-            if (particleOpacity < 0 || particleOpacity > 1 || isNaN(particleOpacity)) {
-                window.showWarningMessage('粒子透明度范围：0 - 1！');
-                return false;
-            }
-        } else if (type === InputType.ParticleColor) {
-            if (!value.includes(',')) {
-                window.showWarningMessage('颜色格式无效，请使用RGB(255,255,255)格式！');
-                return false;
-            }
-        } else if (type === InputType.ParticleCount) {
-            const particleCount = parseInt(value);
-            if (particleCount < 1 || particleCount > 200 || isNaN(particleCount)) {
-                window.showWarningMessage('粒子数量范围：1 - 200！');
-                return false;
-            }
         }
 
         if (type === InputType.Path) {
             return this.updateBackgound(value);
-        } else if (type === InputType.ParticleCount) {
-            this.setContextValue('backgroundCoverParticleCount', parseInt(value), true);
-        } else if (type === InputType.ParticleColor) {
-            this.setContextValue('backgroundCoverParticleColor', value, true);
-        } else if (type === InputType.ParticleOpacity) {
-            this.setContextValue('backgroundCoverParticleOpacity', parseFloat(value), true);
         } else if (type === InputType.Opacity) {
             await this.setConfigValue('opacity', parseFloat(value), true);
         } else if (type === InputType.Blur) {

@@ -120,7 +120,7 @@ export function getTransitionDeclaration(enabled: boolean): string {
 }
 
 /**
- * 过渡动画的"减少动态效果"兜底规则（顶层 @media，与粒子特效降帧语义一致）。
+ * 过渡动画的"减少动态效果"兜底规则（顶层 @media，尊重系统减少动效偏好）。
  */
 export function getTransitionReducedMotionCss(enabled: boolean): string {
     if (!enabled) {

@@ -8,9 +8,7 @@ import version from './version';
 import { SudoPromptHelper } from './SudoPromptHelper';
 import * as fse from 'fs-extra';
 import { getContext } from './global';
-import { getParticleEffectJs, DEFAULT_PARTICLE_FPS } from './ParticleEffect';
 import { getAllPets } from './PickList';
-import Color from './color';
 import { getSessionHash, getWindowCssFileName, isPerWindowEnabled } from './windowBackground';
 import { detectPatchStateFromFile, PatchState, BOOTSTRAP_VERSION } from './patchState';
 import { expandPathVariables, hasFileExtension, isVideoFile, pickRandomFromFolder } from './pathUtil';
@@ -1136,12 +1134,9 @@ export class FileDom {
     }
 
     private getDynamicJs(): string {
-        const particleJs = this.getParticleJs();
-
         return `
         /*ext.${this.extName}.ver.${version}*/
         ${this.getLoaderJs()}
-        ${particleJs}
         `;
     }
 
@@ -1298,49 +1293,6 @@ export class FileDom {
         `;
     }
 
-    // 获取粒子效果js
-    private getParticleJs(): string {
-        const context = getContext();
-        if (!context.globalState.get('backgroundCoverParticleEffect', false)) {
-            return '';
-        }
-
-        const opacity = context.globalState.get('backgroundCoverParticleOpacity', 0.6);
-        const color = this.normalizeParticleColor(context.globalState.get('backgroundCoverParticleColor', '#ffffff'));
-        const count = context.globalState.get('backgroundCoverParticleCount', 50);
-        // 帧率上限（#230）：高刷屏下不节流，粒子重绘次数会随刷新率线性上升
-        const fps = context.globalState.get('backgroundCoverParticleFps', DEFAULT_PARTICLE_FPS);
-
-        return getParticleEffectJs(opacity, color, count, fps);
-    }
-
-    private normalizeParticleColor(value: unknown): string {
-        const raw = typeof value === 'string' ? value.trim() : '';
-        if (!raw) { return '255,255,255'; }
-
-        const preset = Color(raw);
-        if (preset) { return preset; }
-
-        const rgbParts = raw.split(',').map((part) => Number(part.trim()));
-        if (rgbParts.length >= 3 && rgbParts.slice(0, 3).every((part) => Number.isFinite(part))) {
-            return rgbParts.slice(0, 3)
-                .map((part) => Math.max(0, Math.min(255, Math.round(part))))
-                .join(',');
-        }
-
-        const hex = raw.startsWith('#') ? raw.slice(1) : raw;
-        const normalizedHex = hex.length === 3
-            ? hex.split('').map((part) => part + part).join('')
-            : hex;
-        if (/^[0-9a-fA-F]{6}$/.test(normalizedHex)) {
-            const r = parseInt(normalizedHex.slice(0, 2), 16);
-            const g = parseInt(normalizedHex.slice(2, 4), 16);
-            const b = parseInt(normalizedHex.slice(4, 6), 16);
-            return `${r},${g},${b}`;
-        }
-
-        return '255,255,255';
-    }
 
     // 获取css内容
     private getCss(): string {
@@ -1652,15 +1604,6 @@ export class FileDom {
                         window.open = this.originalOpen;
                     }
                     this.originalOpen = null;
-                    try {
-                        const particle = window.__backgroundCoverParticle;
-                        if (particle && typeof particle.destroy === 'function') {
-                            particle.destroy();
-                        }
-                    } catch (e) {
-                        // ignore teardown failures
-                    }
-                    window.__backgroundCoverParticle = undefined;
                     const assistant = document.getElementById('vscode-background-cover-assistant');
                     if (assistant) {
                         assistant.remove();
@@ -2042,7 +1985,7 @@ export class FileDom {
                         if (target.textContent && target.textContent.includes('background-cover-reload-trigger')) {
                             // ':js:' means the dynamic bundle itself changed and must be
                             // re-imported; a CSS-only change just refreshes the stylesheet
-                            // so the pet/particle runtime keeps its state.
+                            // so the pet runtime keeps its state.
                             const triggerMatch = target.textContent.match(/background-cover-reload-trigger:(css|js):\\d+:([0-9a-z]+)/i);
                             if (triggerMatch && triggerMatch[2]) {
                                 window.__backgroundCoverCssUrl = cssUrlForToken(triggerMatch[2]);

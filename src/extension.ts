@@ -36,14 +36,6 @@ export function activate(context: ExtensionContext) {
 	backImgBtn.show();
 	context.subscriptions.push(backImgBtn);
 
-	// 创建底部按钮 - 粒子效果配置
-	let particleBtn = window.createStatusBarItem(StatusBarAlignment.Right, -999);
-	particleBtn.text = '$(sparkle)';
-	particleBtn.command = 'extension.backgroundCover.nest';
-	particleBtn.tooltip = 'Particle effect / 粒子效果';
-	particleBtn.show();
-	context.subscriptions.push(particleBtn);
-
 	// 异步检查 VSCode 版本变化，不阻塞启动
 	checkVSCodeVersionChanged(context).then(async isChanged => {
 		if (!isChanged) {
@@ -106,14 +98,12 @@ export function activate(context: ExtensionContext) {
 		commands.executeCommand('setContext', 'backgroundCover.mode', 'menu');
 		commands.executeCommand('workbench.view.extension.backgroundCover-explorer');
 	});
-	let particleEffectCommand = commands.registerCommand('extension.backgroundCover.nest', () => { PickList.startNest() });
 	let showMenuCommand = commands.registerCommand('extension.backgroundCover.showMenu', () => {
 		commands.executeCommand('setContext', 'backgroundCover.mode', 'menu');
 		commands.executeCommand('workbench.view.extension.backgroundCover-explorer');
 	});
 	context.subscriptions.push(startCommand);
 	context.subscriptions.push(randomCommand);
-	context.subscriptions.push(particleEffectCommand);
 	context.subscriptions.push(showMenuCommand);
 
 	// webview

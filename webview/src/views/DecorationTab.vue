@@ -63,177 +63,43 @@
             </div>
         </el-card>
 
-        <!-- Particles -->
-        <el-card class="card" shadow="never">
-            <template #header>
-                <div class="card-header">
-                    <span class="card-title">
-                        <el-icon><MagicStick /></el-icon>
-                        {{ t('particles') }}
-                    </span>
-                    <el-switch
-                        :model-value="!!state.particleEffect"
-                        @change="toggleParticle"
-                    />
-                </div>
-            </template>
-
-            <div class="slider-row">
-                <span class="slider-label">{{ t('particleOpacity') }}</span>
-                <el-slider
-                    class="slider-input"
-                    :model-value="Number(state.particleOpacity ?? 0.5)"
-                    :min="0.1" :max="1" :step="0.05"
-                    :show-tooltip="false"
-                    @input="onParticleOpacityInput"
-                />
-                <span class="slider-value">{{ Number(state.particleOpacity ?? 0.5).toFixed(2) }}</span>
-            </div>
-
-            <div class="slider-row">
-                <span class="slider-label">{{ t('particleCount') }}</span>
-                <el-slider
-                    class="slider-input"
-                    :model-value="Number(state.particleCount ?? 60)"
-                    :min="1" :max="200" :step="1"
-                    :show-tooltip="false"
-                    @input="onParticleCountInput"
-                />
-                <span class="slider-value">{{ state.particleCount ?? 60 }}</span>
-            </div>
-
-            <div class="slider-row">
-                <span class="slider-label">{{ t('particleFps') }}</span>
-                <el-slider
-                    class="slider-input"
-                    :model-value="Number(state.particleFps ?? DEFAULT_PARTICLE_FPS)"
-                    :min="MIN_PARTICLE_FPS" :max="MAX_PARTICLE_FPS" :step="10"
-                    :show-tooltip="false"
-                    @input="onParticleFpsInput"
-                />
-                <span class="slider-value">{{ Number(state.particleFps ?? DEFAULT_PARTICLE_FPS) }}</span>
-            </div>
-            <div class="slider-hint">{{ t('particleFpsHint') }}</div>
-
-            <div class="color-section">
-                <div class="color-section-head">
-                    <span class="slider-label">{{ t('presetColors') }}</span>
-                    <div class="custom-color">
-                        <span class="slider-label">{{ t('customColor') }}</span>
-                        <el-color-picker
-                            :model-value="currentHex"
-                            size="small"
-                            @change="onCustomColorChange"
-                        />
-                    </div>
-                </div>
-                <div class="swatch-grid">
-                    <button
-                        v-for="entry in state.colorPalette"
-                        :key="entry.name"
-                        class="swatch"
-                        :class="{ 'is-active': entry.name === state.particleColor }"
-                        :title="entry.name"
-                        :style="{ background: entry.hex }"
-                        @click="onSelectPresetColor(entry.name)"
-                    >
-                        <el-icon v-if="entry.name === state.particleColor"><Check /></el-icon>
-                    </button>
-                </div>
-            </div>
-        </el-card>
     </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { Sunny, MagicStick, Picture, Check, RefreshRight } from '@element-plus/icons-vue';
+import { Sunny, Picture, Check, RefreshRight } from '@element-plus/icons-vue';
 import { useI18n } from '../composables/useI18n';
 import { useBridge } from '../composables/useBridge';
 import { useDebouncedPost } from '../composables/useDebouncedPost';
 import { state } from '../composables/useStore';
-import { ActionType, DEFAULT_PARTICLE_FPS, MIN_PARTICLE_FPS, MAX_PARTICLE_FPS } from '../constants';
-import { rgbStringToHex, hexToRgbString } from '../utils/color';
+import { ActionType } from '../constants';
 
 const { t } = useI18n();
 const bridge = useBridge();
 
-/** Resolve the current particle color to a hex string for el-color-picker. */
-const currentHex = computed(() => {
-    const v = state.particleColor || '';
-    if (!v) { return '#ffffff'; }
-    if (v.startsWith('#')) { return v.toLowerCase(); }
-    if (v.includes(',')) { return rgbStringToHex(v); }
-    // Named palette key — look up matching entry.
-    const entry = state.colorPalette.find((e) => e.name === v);
-    return entry ? entry.hex.toLowerCase() : '#ffffff';
-});
-
 function togglePet()      { bridge.post({ type: 'runAction', action: ActionType.TogglePet }); }
-function toggleParticle() { bridge.post({ type: 'runAction', action: ActionType.ToggleParticle }); }
 
 function selectPet(value: string) {
     state.petType = value;
     bridge.post({ type: 'setGlobalState', key: 'backgroundCoverPetType', value });
 }
 
-const opacityPost  = useDebouncedPost('setGlobalState', 'backgroundCoverParticleOpacity', { delay: 180, storeKey: 'particleOpacity' });
-const countPost    = useDebouncedPost('setGlobalState', 'backgroundCoverParticleCount',   { delay: 180, storeKey: 'particleCount' });
-const fpsPost      = useDebouncedPost('setGlobalState', 'backgroundCoverParticleFps',     { delay: 180, storeKey: 'particleFps' });
 const messagesPost = useDebouncedPost('setGlobalState', 'backgroundCoverPetMessages',     { delay: 250, storeKey: 'petMessages' });
-
-function onParticleOpacityInput(v: number | number[]) {
-    const value = Array.isArray(v) ? v[0] : v;
-    state.particleOpacity = value;
-    opacityPost.post(value);
-}
-
-function onParticleCountInput(v: number | number[]) {
-    const value = Array.isArray(v) ? v[0] : v;
-    state.particleCount = value;
-    countPost.post(value);
-}
-
-function onParticleFpsInput(v: number | number[]) {
-    const value = Array.isArray(v) ? v[0] : v;
-    state.particleFps = value;
-    fpsPost.post(value);
-}
 
 function onPetMessagesInput(value: string) {
     state.petMessages = value;
     messagesPost.post(value);
 }
 
-function onSelectPresetColor(name: string) {
-    state.particleColor = name;
-    bridge.post({ type: 'setGlobalState', key: 'backgroundCoverParticleColor', value: name });
-}
-
-function onCustomColorChange(hex: string | null) {
-    if (!hex) { return; }
-    const rgb = hexToRgbString(hex);
-    state.particleColor = rgb;
-    bridge.post({ type: 'setGlobalState', key: 'backgroundCoverParticleColor', value: rgb });
-}
-
 function onApply() {
     // applyDecorations 会携带完整状态，挂起的单项更新无需再发送
-    opacityPost.cancel();
-    countPost.cancel();
-    fpsPost.cancel();
     messagesPost.cancel();
     bridge.post({
         type: 'applyDecorations',
         state: {
             backgroundCoverPetEnabled: !!state.petEnabled,
             backgroundCoverPetType: state.petType,
-            backgroundCoverPetMessages: state.petMessages,
-            backgroundCoverParticleEffect: !!state.particleEffect,
-            backgroundCoverParticleColor: state.particleColor,
-            backgroundCoverParticleCount: Number(state.particleCount ?? 60),
-            backgroundCoverParticleOpacity: Number(state.particleOpacity ?? 0.5),
-            backgroundCoverParticleFps: Number(state.particleFps ?? DEFAULT_PARTICLE_FPS)
+            backgroundCoverPetMessages: state.petMessages
         }
     });
 }

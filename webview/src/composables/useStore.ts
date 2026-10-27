@@ -1,5 +1,4 @@
 import { reactive } from 'vue';
-import { DEFAULT_PARTICLE_FPS } from '../constants';
 
 /**
  * Reactive snapshot of extension-side configuration mirrored into the webview.
@@ -23,17 +22,10 @@ export interface StudioState {
     petEnabled: boolean;
     petType: string;
     petMessages: string;
-    particleEffect: boolean;
-    particleColor: string;
-    particleCount: number;
-    particleOpacity: number;
-    /** 粒子特效帧率上限（#230）：高刷屏下限制重绘次数，降低 GPU 占用 */
-    particleFps: number;
     recentImages: Array<{ path: string; display: string; name: string }>;
     folderImages: Array<{ path: string; display: string; name: string }>;
     folderImagesTotal: number;
     pets: Array<{ value: string; label: string; desc: string; thumb: string }>;
-    colorPalette: Array<{ name: string; rgb: string; hex: string }>;
 }
 
 export const config = reactive<StudioConfig>({
@@ -53,16 +45,10 @@ export const state = reactive<StudioState>({
     petEnabled: false,
     petType: '',
     petMessages: '',
-    particleEffect: false,
-    particleColor: '#ffffff',
-    particleCount: 60,
-    particleOpacity: 0.5,
-    particleFps: DEFAULT_PARTICLE_FPS,
     recentImages: [],
     folderImages: [],
     folderImagesTotal: 0,
-    pets: [],
-    colorPalette: []
+    pets: []
 });
 
 export interface StudioBrand {
