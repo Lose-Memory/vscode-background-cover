@@ -16,11 +16,54 @@ export interface StudioConfig {
     randomImageFolder: string;
     /** false = 所有窗口共用一张背景图（旧版行为） */
     perWindowBackground: boolean;
+    /** 竖图阈值：宽/高 小于它视为竖图；比例筛选与纵向取景共用 */
+    aspectThreshold: number;
+    /** 随机换图时是否只挑宽高比 >= 阈值的图片 */
+    aspectFilterEnabled: boolean;
+    /** 竖图纵向取景位置：0 = 顶部，50 = 居中，100 = 底部 */
+    portraitVerticalPosition: number;
+    /** 子目录扫描层数（只读回显，实际值在扩展侧） */
+    folderScanDepth: number;
+    /** 当前背景图的长宽比；0 = 未知 */
+    imageAspect: number;
+}
+
+export interface FolderImage {
+    path: string;
+    display: string;
+    name: string;
+    width?: number;
+    height?: number;
+    /** 宽/高，保留两位小数；扫描过后才有 */
+    ratio?: number;
+}
+
+export interface RatioBucket {
+    key: string;
+    count: number;
+}
+
+/** 一次目录扫描的汇总（完整逐图尺寸留在扩展侧的缓存里）。 */
+export interface FolderScanSummary {
+    scannedAt: number;
+    total: number;
+    measured: number;
+    unknown: number;
+    horizontal: number;
+    portrait: number;
+    threshold: number;
+    minRatio: number;
+    maxRatio: number;
+    medianRatio: number;
+    buckets: RatioBucket[];
 }
 
 export interface StudioState {
-    folderImages: Array<{ path: string; display: string; name: string }>;
+    folderImages: FolderImage[];
     folderImagesTotal: number;
+    /** 目录文件数达到扫描上限，total 只是「至少这么多」 */
+    folderImagesTruncated: boolean;
+    folderScan: FolderScanSummary | null;
 }
 
 export const config = reactive<StudioConfig>({
@@ -34,11 +77,18 @@ export const config = reactive<StudioConfig>({
     blendModel: 'auto',
     randomImageFolder: '',
     perWindowBackground: true,
+    aspectThreshold: 1.3,
+    aspectFilterEnabled: false,
+    portraitVerticalPosition: 50,
+    folderScanDepth: 3,
+    imageAspect: 0,
 });
 
 export const state = reactive<StudioState>({
     folderImages: [],
-    folderImagesTotal: 0
+    folderImagesTotal: 0,
+    folderImagesTruncated: false,
+    folderScan: null
 });
 
 /**

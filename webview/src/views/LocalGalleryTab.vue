@@ -19,13 +19,47 @@
                     <span class="card-title">
                         <el-icon><FolderOpened /></el-icon>
                         {{ t('folderLibrary') }}
-                        <el-tag size="small" round>{{ state.folderImagesTotal }}</el-tag>
+                        <el-tag size="small" round>{{ state.folderImagesTruncated ? '≥' : '' }}{{ state.folderImagesTotal }}</el-tag>
                     </span>
                     <span class="folder-path" :title="config.randomImageFolder">
                         {{ shortFolder }}
                     </span>
                 </div>
             </template>
+
+            <div class="scan-bar">
+                <el-button size="small" :loading="scanning" :disabled="scanning" @click="onScan">
+                    <el-icon v-if="!scanning"><DataAnalysis /></el-icon>
+                    {{ scanning ? t('scanning') : t('scanFolder') }}
+                </el-button>
+                <span class="scan-status" :title="scanStatus">{{ scanStatus }}</span>
+            </div>
+
+            <div v-if="state.folderScan" class="scan-stats">
+                <div class="stat-row">
+                    <span>{{ t('scanTotal', { n: state.folderScan.total }) }}</span>
+                    <span>{{ t('scanMeasured', { n: state.folderScan.measured }) }}</span>
+                    <span v-if="state.folderScan.unknown">{{ t('scanUnknown', { n: state.folderScan.unknown }) }}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-h">{{ t('scanHorizontal', { n: state.folderScan.horizontal }) }}</span>
+                    <span class="stat-p">{{ t('scanPortrait', { n: state.folderScan.portrait }) }}</span>
+                </div>
+                <div class="stat-row stat-range">
+                    {{ t('scanRatioRange', {
+                        median: formatRatio(state.folderScan.medianRatio),
+                        min: formatRatio(state.folderScan.minRatio),
+                        max: formatRatio(state.folderScan.maxRatio)
+                    }) }}
+                </div>
+                <div class="bucket-list">
+                    <div v-for="b in state.folderScan.buckets" :key="b.key" class="bucket">
+                        <span class="bucket-key">{{ b.key }}</span>
+                        <span class="bucket-track"><i :style="{ width: bucketWidth(b.count) }"></i></span>
+                        <span class="bucket-count">{{ b.count }}</span>
+                    </div>
+                </div>
+            </div>
 
             <el-empty
                 v-if="state.folderImages.length === 0"
@@ -39,8 +73,8 @@
                         :key="img.path"
                         type="button"
                         class="thumb"
-                        :class="{ 'is-active': img.path === config.imagePath }"
-                        :title="img.name"
+                        :class="{ 'is-active': img.path === config.imagePath, 'is-filtered': isFilteredOut(img) }"
+                        :title="thumbTitle(img)"
                         :aria-label="t('thumbSelectLabel', { name: img.name })"
                         :aria-pressed="img.path === config.imagePath"
                         @click="onApplyFolderImage(img.path)"
@@ -63,6 +97,7 @@
                         <div v-if="isVideoPath(img.path)" class="thumb-kind">
                             <el-icon><VideoCamera /></el-icon>
                         </div>
+                        <div v-else-if="img.ratio" class="thumb-ratio">{{ formatRatio(img.ratio) }}</div>
                         <div class="thumb-name">{{ img.name }}</div>
                         <div v-if="img.path === config.imagePath" class="thumb-badge">
                             <el-icon><Check /></el-icon>
@@ -85,7 +120,12 @@
                     v-if="state.folderImagesTotal > state.folderImages.length"
                     class="folder-more"
                 >
-                    {{ t('folderLibraryMore', { n: state.folderImagesTotal, shown: state.folderImages.length }) }}
+                    <template v-if="state.folderImagesTruncated">
+                        {{ t('folderLibraryMoreTruncated', { n: state.folderImages.length }) }}
+                    </template>
+                    <template v-else>
+                        {{ t('folderLibraryMore', { n: state.folderImagesTotal, shown: state.folderImages.length }) }}
+                    </template>
                 </div>
             </div>
         </el-card>
@@ -95,7 +135,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Plus, FolderAdd, FolderOpened, Picture, Check, VideoCamera } from '@element-plus/icons-vue';
+import { Plus, FolderAdd, FolderOpened, Picture, Check, VideoCamera, DataAnalysis } from '@element-plus/icons-vue';
 import { useI18n } from '../composables/useI18n';
 import { useBridge } from '../composables/useBridge';
 import { config, state, thumbs, thumbMisses } from '../composables/useStore';
@@ -111,7 +151,7 @@ const shortFolder = computed(() => {
     return p.length > 28 ? '…' + p.slice(-27) : p;
 });
 
-const folderPageSize = 20;
+const folderPageSize = 40;
 const folderPage = ref(1);
 const folderTotalPages = computed(() => Math.max(1, Math.ceil(state.folderImages.length / folderPageSize)));
 const pagedFolderImages = computed(() => {
@@ -151,6 +191,67 @@ watch(pendingThumbPaths, (paths) => {
     batch.forEach(p => requestedThumbs.add(p));
     bridge.post({ type: 'thumbnailsRequest', paths: batch });
 }, { immediate: true, flush: 'post' });
+
+/* ---------- 目录扫描：统计目录内每张图的长宽比 ---------- */
+const scanning = ref(false);
+const scanProgress = ref<{ done: number; total: number } | null>(null);
+const scanError = ref('');
+
+const scanStatus = computed(() => {
+    if (scanning.value && scanProgress.value) {
+        return t('scanProgress', { done: scanProgress.value.done, total: scanProgress.value.total });
+    }
+    if (scanError.value) { return scanError.value; }
+    const s = state.folderScan;
+    return s ? t('scanDone', { n: s.measured }) : t('scanStatusIdle');
+});
+
+function onScan() {
+    scanError.value = '';
+    scanProgress.value = null;
+    scanning.value = true;
+    bridge.post({ type: 'scanFolder' });
+}
+
+bridge.on('scanProgress', (msg: any) => { scanProgress.value = msg?.data ?? null; });
+bridge.on('scanResult', (msg: any) => {
+    scanning.value = false;
+    scanProgress.value = null;
+    const payload = msg?.data;
+    scanError.value = payload?.error ? String(payload.error) : '';
+});
+
+function formatRatio(v?: number): string {
+    return typeof v === 'number' && Number.isFinite(v) ? v.toFixed(2) : '—';
+}
+
+const maxBucketCount = computed(() => {
+    const buckets = state.folderScan?.buckets ?? [];
+    return Math.max(1, ...buckets.map(b => b.count));
+});
+function bucketWidth(count: number): string {
+    return `${Math.max(2, Math.round((count / maxBucketCount.value) * 100))}%`;
+}
+
+/* ---------- 长宽比角标与「会被筛选掉」的提示 ---------- */
+const filterThreshold = computed(() => {
+    const v = Number(config.aspectThreshold);
+    return Number.isFinite(v) && v > 0 ? v : 1.3;
+});
+
+function thumbTitle(img: { name: string; width?: number; height?: number; ratio?: number }): string {
+    if (!img.width || !img.height) { return img.name; }
+    return `${img.name}\n` + t('scanDims', {
+        w: img.width,
+        h: img.height,
+        r: formatRatio(img.ratio ?? img.width / img.height)
+    });
+}
+
+function isFilteredOut(img: { ratio?: number }): boolean {
+    if (!config.aspectFilterEnabled || !img.ratio) { return false; }
+    return img.ratio < filterThreshold.value;
+}
 
 function onPick()      { bridge.post({ type: 'runAction', action: ActionType.SelectPictures }); }
 function onAddDir()    { bridge.post({ type: 'runAction', action: ActionType.AddDirectory }); }
@@ -299,6 +400,112 @@ function onHover(ev: Event, entering: boolean) {
     justify-content: center;
     font-size: 11px;
     box-shadow: 0 2px 8px rgba(108, 140, 255, 0.55);
+}
+
+.thumb-ratio {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    padding: 1px 5px;
+    background: rgba(15, 18, 32, 0.72);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 10px;
+    line-height: 14px;
+    font-family: 'Consolas', 'SFMono-Regular', Menlo, monospace;
+    backdrop-filter: blur(4px);
+    pointer-events: none;
+}
+
+/* 会被比例筛选排除的图片：角标变橙，图库本身仍完整显示 */
+.thumb.is-filtered .thumb-ratio {
+    background: rgba(196, 124, 22, 0.85);
+}
+
+.thumb.is-filtered img,
+.thumb.is-filtered video {
+    opacity: 0.62;
+}
+
+/* ---------- 扫描按钮与统计 ---------- */
+.scan-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.scan-status {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.scan-stats {
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--studio-input-bg);
+    border: 1px solid rgba(120, 140, 200, 0.18);
+    font-size: 11px;
+    color: var(--vscode-foreground);
+}
+
+.stat-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    line-height: 18px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.stat-h { color: var(--vscode-charts-blue, #6c8cff); }
+.stat-p { color: var(--vscode-charts-orange, #d98a2b); }
+.stat-range { font-family: 'Consolas', 'SFMono-Regular', Menlo, monospace; }
+
+.bucket-list {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.bucket {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+}
+
+.bucket-key {
+    flex: 0 0 74px;
+    font-family: 'Consolas', 'SFMono-Regular', Menlo, monospace;
+    color: var(--vscode-descriptionForeground);
+}
+
+.bucket-track {
+    flex: 1 1 auto;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(120, 140, 200, 0.16);
+    overflow: hidden;
+    i {
+        display: block;
+        height: 100%;
+        border-radius: 3px;
+        background: var(--studio-btn-grad);
+    }
+}
+
+.bucket-count {
+    flex: 0 0 44px;
+    text-align: right;
+    font-family: 'Consolas', 'SFMono-Regular', Menlo, monospace;
+    color: var(--vscode-foreground);
 }
 
 .block-btn { width: 100%; }

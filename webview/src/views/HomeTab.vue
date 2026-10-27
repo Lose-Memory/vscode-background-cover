@@ -6,6 +6,7 @@
                 <video
                     v-if="displayUrl && isVideo"
                     :src="displayUrl"
+                    :style="previewObjectStyle"
                     autoplay
                     muted
                     loop
@@ -14,6 +15,7 @@
                 <img
                     v-else-if="displayUrl"
                     :src="displayUrl"
+                    :style="previewObjectStyle"
                     :alt="t('previewAlt')"
                 />
                 <div v-else class="preview-empty">
@@ -134,6 +136,18 @@ const bridge = useBridge();
 const displayUrl = computed(() => config.imagePathDisplay || '');
 
 const isVideo = computed(() => isVideoPath(config.imagePath));
+
+/**
+ * 竖图（宽/高 小于竖图阈值）按设定的纵向位置取景：
+ * object-position 的百分比语义与 background-position 一致，预览与真实背景同步偏移。
+ */
+const previewObjectStyle = computed(() => {
+    const aspect = Number(config.imageAspect || 0);
+    const threshold = Number(config.aspectThreshold || 1.3);
+    const pct = Math.max(0, Math.min(100, Math.round(Number(config.portraitVerticalPosition ?? 50))));
+    if (!aspect || !threshold || aspect >= threshold || pct === 50) { return undefined; }
+    return { objectPosition: `center ${pct}%` };
+});
 
 const shortPath = computed(() => {
     const p = config.imagePath || '';

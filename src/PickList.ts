@@ -22,6 +22,7 @@ import vsHelp from './vsHelp';
 import { getContext } from './global';
 import { hasCurrentImageRecord, resolveCurrentBlur, resolveCurrentImagePath, resolveCurrentOpacity, setCurrentBlur, setCurrentImagePath, setCurrentOpacity } from './windowBackground';
 import { expandPathVariables, FOLDER_SCAN_DEFAULT_DEPTH, FOLDER_SCAN_MAX_DEPTH, listImagesInFolder, MEDIA_EXTS, pickRandomFromFolder } from './pathUtil';
+import { filterByMinAspect, getImageAspect } from './imageStats';
 
 
 
@@ -276,14 +277,31 @@ export class PickList {
         if (randomImageFolder) {
             const files = this.getFolderImgList(randomImageFolder);
             if (files.length > 0) {
-                if (!persist) {
-                    return await this.applyAutoCandidates(files, persist);
+                const minRatio = this.ratioFilterValue();
+                // 抽样筛掉长宽比不达标的图片；视频/读不到尺寸的条目照旧参与随机。
+                const candidates = await filterByMinAspect(files, minRatio);
+                if (candidates.length === 0) {
+                    window.setStatusBarMessage(
+                        `没有长宽比 ≥ ${minRatio} 的图片，请调整竖图阈值或关闭比例筛选 / No image with aspect ratio >= ${minRatio}.`,
+                        5000
+                    );
+                    return false;
                 }
-                const randomFile = files[Math.floor(Math.random() * files.length)];
+                if (!persist) {
+                    return await this.applyAutoCandidates(candidates, persist);
+                }
+                const randomFile = candidates[Math.floor(Math.random() * candidates.length)];
                 await this.updateBackgound(randomFile, persist, { skipLargeImagePrompt: true });
             }
         }
         return true;
+    }
+
+    /** 随机换图时的长宽比下限；未开启筛选返回 0（不筛选）。 */
+    private ratioFilterValue(): number {
+        if (!this.config.get<boolean>('aspectFilterEnabled', false)) { return 0; }
+        const raw = Number(this.config.get('aspectThreshold', 1.3));
+        return Number.isFinite(raw) && raw > 0 ? raw : 1.3;
     }
 
     private async applyAutoCandidates(candidates: string[], persist: boolean): Promise<boolean> {
@@ -723,7 +741,9 @@ export class PickList {
 
         const seq = ++PickList._updateSeq;
         const isCurrentUpdate = () => seq === PickList._updateSeq;
-        const dom = new FileDom(this.config, this.imgPath, this.opacity, this.sizeModel, this.blur, colorThemeKind, isCurrentUpdate, this.silentApply);
+        // 竖图纵向取景需要当前图片的长宽比：只读一次 metadata（按 mtime 缓存）。
+        const imageAspect = uninstall ? 0 : (await getImageAspect(this.imgPath)) ?? 0;
+        const dom = new FileDom(this.config, this.imgPath, this.opacity, this.sizeModel, this.blur, colorThemeKind, isCurrentUpdate, this.silentApply, imageAspect);
         let result = false;
 
         try {

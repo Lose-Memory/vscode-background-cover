@@ -17,8 +17,9 @@ import {
 import { PickList } from './PickList';
 import { onDidChangeGlobalState } from './global';
 import { resolveCurrentBlur, resolveCurrentImagePath, resolveCurrentOpacity } from './windowBackground';
-import { expandPathVariables } from './pathUtil';
+import { expandPathVariables, FOLDER_SCAN_MAX_FILES } from './pathUtil';
 import { getThumbnail } from './thumbnails';
+import { getCachedImageSize, getLatestScan, scanFolderSizes } from './imageStats';
 
 const PUSH_DEBOUNCE_MS = 120;
 
@@ -37,11 +38,14 @@ const WEBVIEW_WRITABLE_STATE_KEYS = new Set<string>(['backgroundCoverLocale']);
  *   { type: 'setConfig', key: string, value: any }
  *   { type: 'setGlobalState', key: string, value: any }
  *   { type: 'thumbnailsRequest', paths: string[] }
+ *   { type: 'scanFolder' }
  *   { type: 'applyDecorations' }
  *   { type: 'openExternal', url: string }
  *
  * Outbound:
  *   { type: 'state', data: { locale, config, state } }
+ *   { type: 'scanProgress', data: { done, total } }
+ *   { type: 'scanResult', data: FolderScanResult | { error } }
  *   { type: 'navigate', tab: 'home'|'advanced' }
  */
 export class StudioViewProvider implements WebviewViewProvider {
@@ -55,6 +59,8 @@ export class StudioViewProvider implements WebviewViewProvider {
     private pushTimer?: ReturnType<typeof setTimeout>;
     /** Folder listing cache keyed by folder path + mtime; avoids readdir on every push. */
     private folderCache?: { folder: string; mtimeMs: number; depth: number; names: string[] };
+    /** 目录扫描进行中：避免连点按钮并发扫两遍。 */
+    private scanning = false;
 
     constructor(private readonly ctx: ExtensionContext) {}
 
@@ -124,22 +130,33 @@ export class StudioViewProvider implements WebviewViewProvider {
         const imagePathDisplay = this.toWebviewUri(imagePath);
 
         const folder = expandPathVariables(cfg.get<string>('randomImageFolder') || '');
-        let folderImages: { path: string; display: string; name: string }[] = [];
+        let folderImages: { path: string; display: string; name: string; width?: number; height?: number; ratio?: number }[] = [];
         let folderImagesTotal = 0;
+        let folderImagesTruncated = false;
         try {
             if (folder && fs.existsSync(folder) && fs.statSync(folder).isDirectory()) {
                 const names = this.listFolder(folder);
                 folderImagesTotal = names.length;
-                folderImages = names.slice(0, 2000).map(full => ({
-                    path: full,
-                    display: this.toWebviewUri(full),
-                    name: this.basename(full)
-                }));
+                // 扫描有数量上限：达到上限时结果只代表「至少这么多」，不能当成真实总数
+                folderImagesTruncated = folderImagesTotal >= FOLDER_SCAN_MAX_FILES;
+                folderImages = names.slice(0, 2000).map(full => {
+                    const size = getCachedImageSize(full);
+                    return {
+                        path: full,
+                        display: this.toWebviewUri(full),
+                        name: this.basename(full),
+                        width: size?.width,
+                        height: size?.height,
+                        ratio: size ? Math.round((size.width / size.height) * 100) / 100 : undefined
+                    };
+                });
             }
         } catch {
             folderImages = [];
             folderImagesTotal = 0;
+            folderImagesTruncated = false;
         }
+        const folderScan = getLatestScan(folder || undefined) ?? null;
 
         let brandLogo = '';
         try {
@@ -169,11 +186,22 @@ export class StudioViewProvider implements WebviewViewProvider {
                     blendModel: cfg.get('blendModel') ?? 'auto',
                     randomImageFolder: cfg.get('randomImageFolder') ?? '',
                     perWindowBackground: cfg.get('perWindowBackground') ?? true,
-                    backgroundTransition: true
+                    backgroundTransition: true,
+                    aspectThreshold: cfg.get('aspectThreshold') ?? 1.3,
+                    aspectFilterEnabled: cfg.get('aspectFilterEnabled') ?? false,
+                    portraitVerticalPosition: cfg.get('portraitVerticalPosition') ?? 50,
+                    folderScanDepth: PickList.getScanDepth(),
+                    // 当前背景图的长宽比（未统计过为 0），首页预览据此决定是否偏移
+                    imageAspect: (() => {
+                        const size = getCachedImageSize(imagePath);
+                        return size ? size.width / size.height : 0;
+                    })()
                 },
                 state: {
                     folderImages,
-                    folderImagesTotal
+                    folderImagesTotal,
+                    folderImagesTruncated,
+                    folderScan
                 }
             }
         });
@@ -235,6 +263,10 @@ export class StudioViewProvider implements WebviewViewProvider {
                 await this.applyDecorations();
                 return;
 
+            case 'scanFolder':
+                await this.scanFolder();
+                return;
+
             case 'openExternal':
                 if (typeof msg.url === 'string' && /^https:\/\//i.test(msg.url)) {
                     await env.openExternal(Uri.parse(msg.url));
@@ -246,6 +278,54 @@ export class StudioViewProvider implements WebviewViewProvider {
     private async applyDecorations(): Promise<void> {
         await PickList.applyCurrentBackground();
         await commands.executeCommand('workbench.action.reloadWindow');
+    }
+
+    /**
+     * 统计来源目录内所有图片的尺寸与长宽比（一次性的全量扫描，结果只保留在当前会话）。
+     * 扫描期间按 ~120ms 推送一次进度；结束时无论成功失败都推一次 scanResult。
+     */
+    private async scanFolder(): Promise<void> {
+        const post = (msg: any) => { this.view?.webview.postMessage(msg); };
+        if (this.scanning) { return; }
+
+        const cfg = workspace.getConfiguration('backgroundCover');
+        const folder = expandPathVariables(cfg.get<string>('randomImageFolder') || '');
+        let names: string[] = [];
+        try {
+            if (!folder || !fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) {
+                throw new Error('请先选择来源目录 / Choose a source folder first.');
+            }
+            names = this.listFolder(folder);
+        } catch (e: any) {
+            post({ type: 'scanResult', data: { error: String(e?.message || e) } });
+            return;
+        }
+
+        if (!names.length) {
+            post({ type: 'scanResult', data: { error: '目录内没有图片或视频 / The folder has no media.' } });
+            return;
+        }
+
+        this.scanning = true;
+        try {
+            const rawThreshold = Number(cfg.get('aspectThreshold', 1.3));
+            const threshold = Number.isFinite(rawThreshold) && rawThreshold > 0 ? rawThreshold : 1.3;
+            post({ type: 'scanProgress', data: { done: 0, total: names.length } });
+            const result = await scanFolderSizes(
+                folder,
+                PickList.getScanDepth(),
+                names,
+                threshold,
+                p => post({ type: 'scanProgress', data: p })
+            );
+            post({ type: 'scanResult', data: result });
+        } catch (e: any) {
+            post({ type: 'scanResult', data: { error: String(e?.message || e) } });
+        } finally {
+            this.scanning = false;
+        }
+        // 扫描后每个缩略图都有尺寸/比例了，重推一次让图库显示角标
+        this.pushState();
     }
 
     /**

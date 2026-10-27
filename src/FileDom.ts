@@ -391,6 +391,8 @@ export class FileDom {
     private workConfig: WorkspaceConfiguration;
     private initializePromise?: Promise<void>;
     private isVideo: boolean = false;
+    /** 当前图片的长宽比（宽/高），0 表示未知；竖图纵向取景用它判断是否偏移。 */
+    private imageAspect: number = 0;
     public didUpdateCss: boolean = false;
     public didUpdateDynamicJs: boolean = false;
 
@@ -402,9 +404,11 @@ export class FileDom {
         blur: number = 0,
         blendModel: string = '',
         shouldApply: () => boolean = () => true,
-        silent: boolean = false
+        silent: boolean = false,
+        imageAspect: number = 0
     ) {
         this.workConfig = workConfig;
+        this.imageAspect = imageAspect;
         this.filePath = JS_FILE_PATH;
         this.imagePath = imagePath;
         this.imageOpacity = Math.min(opacity, 0.8);
@@ -2019,6 +2023,18 @@ export class FileDom {
                 sizeModelVal = "auto";
                 positionVal = "bottom";
                 break;
+        }
+
+        // 竖图纵向取景：cover 会裁掉竖图上下两端，横屏下居中对齐经常把脸裁掉。
+        // 长宽比小于阈值的图按 portraitVerticalPosition（0=顶部，50=居中，100=底部）偏移。
+        if (this.sizeModel === "cover" && this.imageAspect > 0) {
+            const rawThreshold = Number(this.workConfig.get('aspectThreshold', 1.3));
+            const threshold = Number.isFinite(rawThreshold) && rawThreshold > 0 ? rawThreshold : 1.3;
+            const rawPercent = Number(this.workConfig.get('portraitVerticalPosition', 50));
+            const percent = Number.isFinite(rawPercent) ? Math.min(100, Math.max(0, rawPercent)) : 50;
+            if (this.imageAspect < threshold && percent !== 50) {
+                positionVal = `center ${percent}%`;
+            }
         }
 
         return { sizeModelVal, repeatVal, positionVal };

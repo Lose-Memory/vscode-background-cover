@@ -2,7 +2,7 @@
     "name": "background-cover",
     "displayName": "background-cover",
     "description": "Add a picture you like to cover the entire vscode background (Hot Reload Supported). / 添加你喜欢的图片覆盖整个vscode背景（支持热更新）",
-    "version": "3.8.0",
+    "version": "3.9.0",
     "publisher": "manasxx",
     "engines": {
         "vscode": "^1.38.0"
@@ -102,6 +102,25 @@
                     "minimum": 0,
                     "maximum": 10,
                     "description": "How many levels of sub-directories to scan for images (0 = current folder only, default 3) / 扫描子目录的层数（0 = 只看当前目录，默认 3 层）"
+                },
+                "backgroundCover.aspectThreshold": {
+                    "type": "number",
+                    "default": 1.3,
+                    "minimum": 0.1,
+                    "maximum": 10,
+                    "description": "Portrait threshold: images with width/height below this value are treated as portrait (used by the aspect filter and the vertical position) / 竖图阈值：宽高比小于该值的图视为竖图（比例筛选与纵向取景共用）"
+                },
+                "backgroundCover.aspectFilterEnabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Only pick images whose aspect ratio is >= the portrait threshold when changing the background randomly; the gallery still lists every image / 随机换图时只挑选宽高比 ≥ 竖图阈值的图片；图库仍显示全部"
+                },
+                "backgroundCover.portraitVerticalPosition": {
+                    "type": "number",
+                    "default": 50,
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "Vertical framing for portrait images in cover mode (0 = top, 50 = center, 100 = bottom) / 竖图纵向取景位置（0 = 顶部，50 = 居中，100 = 底部）"
                 },
                 "backgroundCover.autoStatus": {
                     "type": "boolean",

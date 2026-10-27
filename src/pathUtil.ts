@@ -59,7 +59,7 @@ export function isVideoFile(name: string): boolean {
 /** 扫描上限：防止把整个 ~/ 或网盘挂载目录同步递归一遍卡住扩展宿主。 */
 export const FOLDER_SCAN_DEFAULT_DEPTH = 3;
 export const FOLDER_SCAN_MAX_DEPTH = 10;
-export const FOLDER_SCAN_MAX_FILES = 10000;
+export const FOLDER_SCAN_MAX_FILES = 50000;
 const FOLDER_SCAN_CACHE_TTL_MS = 30_000;
 const folderScanCache = new Map<string, { mtimeMs: number; at: number; files: string[] }>();
 

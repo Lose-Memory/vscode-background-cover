@@ -77,6 +77,56 @@
             </el-select>
         </el-card>
 
+        <!-- Aspect ratio：比例筛选 + 竖图纵向取景 -->
+        <el-card class="card" shadow="never">
+            <template #header>
+                <span class="card-title">
+                    <el-icon><Crop /></el-icon>
+                    {{ t('aspectSection') }}
+                </span>
+            </template>
+
+            <div class="row">
+                <span class="row-label">{{ t('aspectFilterEnabled') }}</span>
+                <el-switch
+                    :model-value="!!config.aspectFilterEnabled"
+                    @change="(v: any) => bridge.post({ type: 'setConfig', key: 'aspectFilterEnabled', value: v })"
+                />
+            </div>
+
+            <div class="row">
+                <span class="row-label">{{ t('aspectThreshold') }}</span>
+                <el-input-number
+                    :model-value="Number(config.aspectThreshold ?? 1.3)"
+                    :min="0.1"
+                    :max="10"
+                    :step="0.05"
+                    :precision="2"
+                    size="small"
+                    controls-position="right"
+                    class="interval-input"
+                    @change="onThresholdChange"
+                />
+            </div>
+            <div class="row-hint">{{ t('aspectThresholdHint') }}</div>
+
+            <div class="row row-col">
+                <span class="row-label">
+                    {{ t('portraitPosition') }}
+                    <span class="pos-value">{{ positionValue }}%</span>
+                </span>
+                <el-slider
+                    :model-value="positionValue"
+                    :min="0"
+                    :max="100"
+                    :step="1"
+                    :show-tooltip="false"
+                    @input="onPositionChange"
+                />
+            </div>
+            <div class="row-hint">{{ t('portraitPositionHint') }}</div>
+        </el-card>
+
         <!-- Blend mode -->
         <el-card class="card" shadow="never">
             <template #header>
@@ -115,7 +165,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Refresh, ArrowRight, FullScreen, Brush, Star, Monitor, RefreshRight } from '@element-plus/icons-vue';
+import { Refresh, ArrowRight, FullScreen, Brush, Star, Monitor, RefreshRight, Crop } from '@element-plus/icons-vue';
 import { useI18n, type MessageKey } from '../composables/useI18n';
 import { useBridge } from '../composables/useBridge';
 import { useDebouncedPost } from '../composables/useDebouncedPost';
@@ -156,6 +206,29 @@ function onIntervalChange(v: number | undefined) {
     const value = Number(v ?? 10);
     config.autoInterval = value;
     intervalPost.post(value);
+}
+
+// 竖图阈值：同时决定「比例筛选」的下限和「竖图」的判定
+const thresholdPost = useDebouncedPost('setConfig', 'aspectThreshold', { delay: 250 });
+function onThresholdChange(v: number | undefined) {
+    const value = Number(v ?? 1.3);
+    config.aspectThreshold = Number.isFinite(value) && value > 0 ? value : 1.3;
+    thresholdPost.post(config.aspectThreshold);
+}
+
+// 竖图纵向取景：0 = 顶部，50 = 居中，100 = 底部
+const positionValue = computed(() => {
+    const v = Number(config.portraitVerticalPosition ?? 50);
+    if (!Number.isFinite(v)) { return 50; }
+    return Math.max(0, Math.min(100, Math.round(v)));
+});
+
+const positionPost = useDebouncedPost('setConfig', 'portraitVerticalPosition', { delay: 200 });
+function onPositionChange(v: any) {
+    const raw = Array.isArray(v) ? v[0] : v;
+    const value = Math.max(0, Math.min(100, Math.round(Number(raw ?? 50))));
+    config.portraitVerticalPosition = value;
+    positionPost.post(value);
 }
 
 const sizeModeOptions = computed(() => SIZE_MODES.map((value) => ({
@@ -229,6 +302,25 @@ function onApplyChanges() { bridge.post({ type: 'applyDecorations' }); }
 }
 
 .block-select { width: 100%; }
+
+/* 竖图纵向取景：标签一行、滑块占满一行 */
+.row-col {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    .row-label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    :deep(.el-slider) { padding: 0 4px; }
+}
+
+.pos-value {
+    font-family: 'Consolas', 'SFMono-Regular', Menlo, monospace;
+    font-size: 11px;
+    color: var(--studio-accent, var(--vscode-textLink-foreground));
+}
 
 .interval-input { width: 120px; }
 
