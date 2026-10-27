@@ -82,11 +82,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue';
-import { Picture, Refresh, House, Folder, Setting, MagicStick, Place, Brush } from '@element-plus/icons-vue';
+import { Picture, Refresh, House, Folder, Setting, Place, Brush } from '@element-plus/icons-vue';
 import HomeTab from './views/HomeTab.vue';
 import LocalGalleryTab from './views/LocalGalleryTab.vue';
 import AdvancedTab from './views/AdvancedTab.vue';
-import DecorationTab from './views/DecorationTab.vue';
 import { useTheme } from './composables/useTheme';
 import { useBridge } from './composables/useBridge';
 import { useI18n, setLocale, type Locale } from './composables/useI18n';
@@ -156,15 +155,13 @@ function onLangChange(value: Locale) {
 const tabs = computed(() => [
     { key: 'home',       label: t('tabHome'),       icon: House },
     { key: 'local',      label: t('tabLocal'),      icon: Folder },
-    { key: 'advanced',   label: t('tabAdvanced'),   icon: Setting },
-    { key: 'decoration', label: t('tabDecoration'), icon: MagicStick }
+    { key: 'advanced',   label: t('tabAdvanced'),   icon: Setting }
 ]);
 
 const views: Record<string, any> = {
     home: HomeTab,
     local: LocalGalleryTab,
-    advanced: AdvancedTab,
-    decoration: DecorationTab
+    advanced: AdvancedTab
 };
 
 const initialTab = prefs.activeTab && views[prefs.activeTab] ? prefs.activeTab : 'home';

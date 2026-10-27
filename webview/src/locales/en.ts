@@ -3,7 +3,6 @@ export default {
     tabHome:           'Home',
     tabLocal:          'Local',
     tabAdvanced:       'Advanced',
-    tabDecoration:     'Decoration',
 
     currentBackground: 'Current Background',
     none:              'None',

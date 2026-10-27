@@ -98,7 +98,12 @@
 
         <!-- Misc -->
         <el-card class="card" shadow="never">
+            <div class="row-hint hint-top">{{ t('applyChangesHint') }}</div>
             <div class="quick-actions">
+                <el-button class="block-btn" type="primary" @click="onApplyChanges">
+                    <el-icon><RefreshRight /></el-icon>
+                    {{ t('applyChanges') }}
+                </el-button>
                 <el-button class="block-btn" type="danger" plain @click="onSupport">
                     <el-icon><Star /></el-icon>
                     {{ t('supportAuthor') }}
@@ -110,7 +115,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Refresh, ArrowRight, FullScreen, Brush, Star, Monitor } from '@element-plus/icons-vue';
+import { Refresh, ArrowRight, FullScreen, Brush, Star, Monitor, RefreshRight } from '@element-plus/icons-vue';
 import { useI18n, type MessageKey } from '../composables/useI18n';
 import { useBridge } from '../composables/useBridge';
 import { useDebouncedPost } from '../composables/useDebouncedPost';
@@ -164,6 +169,7 @@ const blendModeOptions = computed(() => BLEND_MODES.map((value) => ({
 
 function onSourceFolder() { bridge.post({ type: 'runAction', action: ActionType.AddDirectory }); }
 function onSupport()      { bridge.post({ type: 'runAction', action: ActionType.OpenFilePath, path: '//resources//support.jpg' }); }
+function onApplyChanges() { bridge.post({ type: 'applyDecorations' }); }
 </script>
 
 <style lang="scss" scoped>
@@ -202,6 +208,12 @@ function onSupport()      { bridge.post({ type: 'runAction', action: ActionType.
     opacity: .85;
     padding-top: 6px;
     border-top: var(--studio-divider);
+}
+
+.hint-top {
+    padding-top: 0;
+    padding-bottom: 8px;
+    border-top: none;
 }
 
 .folder-btn {

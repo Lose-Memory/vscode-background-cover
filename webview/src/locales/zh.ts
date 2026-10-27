@@ -3,7 +3,6 @@ export default {
     tabHome:           '首页',
     tabLocal:          '本地',
     tabAdvanced:       '高级',
-    tabDecoration:     '装饰',
 
     currentBackground: '当前背景',
     none:              '无',
