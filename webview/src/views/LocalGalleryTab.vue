@@ -67,7 +67,7 @@
                         @mouseenter="onHover($event, true)"
                         @mouseleave="onHover($event, false)"
                     />
-                    <img v-else-if="img.display" :src="img.display" :alt="img.name" loading="lazy" />
+                    <img v-else-if="thumbSrc(img)" :src="thumbSrc(img)" :alt="img.name" loading="lazy" />
                     <div v-else class="thumb-fallback">
                         <el-icon><Picture /></el-icon>
                     </div>
@@ -126,7 +126,7 @@
                             @mouseenter="onHover($event, true)"
                             @mouseleave="onHover($event, false)"
                         />
-                        <img v-else-if="img.display" :src="img.display" :alt="img.name" loading="lazy" />
+                        <img v-else-if="thumbSrc(img)" :src="thumbSrc(img)" :alt="img.name" loading="lazy" />
                         <div v-else class="thumb-fallback">
                             <el-icon><Picture /></el-icon>
                         </div>
@@ -168,7 +168,7 @@ import { computed, ref, watch } from 'vue';
 import { Plus, FolderAdd, FolderOpened, PictureFilled, Picture, Check, VideoCamera, Delete } from '@element-plus/icons-vue';
 import { useI18n } from '../composables/useI18n';
 import { useBridge } from '../composables/useBridge';
-import { config, state } from '../composables/useStore';
+import { config, state, thumbs, thumbMisses } from '../composables/useStore';
 import { ActionType } from '../constants';
 import { isVideoPath } from '../utils/media';
 
@@ -195,6 +195,33 @@ watch(() => config.randomImageFolder, () => { folderPage.value = 1; });
 watch(() => state.folderImages.length, () => {
     if (folderPage.value > folderTotalPages.value) { folderPage.value = 1; }
 });
+
+/**
+ * 网格里展示缩略图而不是原图：视频与生成失败的条目回退到原文件。
+ */
+function thumbSrc(img: { path: string; display: string }): string {
+    if (isVideoPath(img.path)) { return ''; }
+    return thumbs[img.path] || (thumbMisses[img.path] ? img.display : '');
+}
+
+const requestedThumbs = new Set<string>();
+const pendingThumbPaths = computed(() => {
+    const out: string[] = [];
+    const push = (p: string) => {
+        if (!p || isVideoPath(p) || thumbs[p] || thumbMisses[p] || requestedThumbs.has(p)) { return; }
+        out.push(p);
+    };
+    state.recentImages.forEach(i => push(i.path));
+    pagedFolderImages.value.forEach(i => push(i.path));
+    return out;
+});
+
+watch(pendingThumbPaths, (paths) => {
+    const batch = paths.slice(0, 40);
+    if (!batch.length) { return; }
+    batch.forEach(p => requestedThumbs.add(p));
+    bridge.post({ type: 'thumbnailsRequest', paths: batch });
+}, { immediate: true, flush: 'post' });
 
 function onPick()      { bridge.post({ type: 'runAction', action: ActionType.SelectPictures }); }
 function onAddDir()    { bridge.post({ type: 'runAction', action: ActionType.AddDirectory }); }

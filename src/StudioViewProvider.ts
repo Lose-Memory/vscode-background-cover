@@ -18,6 +18,7 @@ import { PickList } from './PickList';
 import { onDidChangeGlobalState } from './global';
 import { resolveCurrentBlur, resolveCurrentImagePath, resolveCurrentOpacity } from './windowBackground';
 import { expandPathVariables } from './pathUtil';
+import { getThumbnail } from './thumbnails';
 
 const PUSH_DEBOUNCE_MS = 120;
 
@@ -35,6 +36,7 @@ const WEBVIEW_WRITABLE_STATE_KEYS = new Set<string>(['backgroundCoverLocale']);
  *   { type: 'runAction', action: number, path?: string }
  *   { type: 'setConfig', key: string, value: any }
  *   { type: 'setGlobalState', key: string, value: any }
+ *   { type: 'thumbnailsRequest', paths: string[] }
  *   { type: 'applyDecorations' }
  *   { type: 'openExternal', url: string }
  *
@@ -221,6 +223,21 @@ export class StudioViewProvider implements WebviewViewProvider {
                     onDidChangeGlobalState.fire();
                 }
                 return;
+
+            case 'thumbnailsRequest': {
+                const paths: string[] = Array.isArray(msg.paths)
+                    ? msg.paths.filter((p: unknown): p is string => typeof p === 'string' && p.length > 0)
+                    : [];
+                const items: Array<{ path: string; display: string }> = [];
+                for (const p of paths.slice(0, 60)) {
+                    const thumb = await getThumbnail(p);
+                    items.push({ path: p, display: thumb ? this.toWebviewUri(thumb) : '' });
+                }
+                if (items.length && this.view) {
+                    await this.view.webview.postMessage({ type: 'thumbnails', items });
+                }
+                return;
+            }
 
             case 'clearRecentImages':
                 await this.ctx.globalState.update('backgroundCoverRecentImages', []);

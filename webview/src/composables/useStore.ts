@@ -43,6 +43,13 @@ export const state = reactive<StudioState>({
     folderImagesTotal: 0
 });
 
+/**
+ * 图库缩略图：path → webview 可用的缩略图地址（扩展侧 sharp 生成）。
+ * thumbMisses 记录已请求过但没有缩略图的路径（视频/生成失败），此时回退原图。
+ */
+export const thumbs = reactive<Record<string, string>>({});
+export const thumbMisses = reactive<Record<string, true>>({});
+
 export interface StudioBrand {
     logo: string;
     name: string;

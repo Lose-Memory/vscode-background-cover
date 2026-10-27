@@ -22,6 +22,7 @@ import { PickList } from './PickList';
 import vsHelp from './vsHelp';
 import { setContext } from './global';
 import { CUSTOM_JS_FILE_PATH, collectStaleWindowCssFiles, detectPatchState } from './FileDom';
+import { pruneOldThumbnails } from './thumbnails';
 import { StudioViewProvider } from './StudioViewProvider';
 import { hasCurrentImageRecord, resolveCurrentImagePath, setCurrentBlur, setCurrentImagePath, setCurrentOpacity } from './windowBackground';
 
@@ -80,6 +81,9 @@ export function activate(context: ExtensionContext) {
 
 	// 回收历史窗口会话遗留的 CSS 文件，不阻塞启动
 	void collectStaleWindowCssFiles();
+
+	// 清理过期缩略图缓存，不阻塞启动
+	void pruneOldThumbnails();
 
 	// 监听配置变化
 	context.subscriptions.push(workspace.onDidChangeConfiguration(e => {

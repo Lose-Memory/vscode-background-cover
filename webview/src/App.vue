@@ -89,7 +89,7 @@ import AdvancedTab from './views/AdvancedTab.vue';
 import { useTheme } from './composables/useTheme';
 import { useBridge } from './composables/useBridge';
 import { useI18n, setLocale, type Locale } from './composables/useI18n';
-import { applyState, brand } from './composables/useStore';
+import { applyState, brand, thumbs, thumbMisses } from './composables/useStore';
 
 const { t, locale } = useI18n();
 const bridge = useBridge();
@@ -177,6 +177,18 @@ bridge.on('state', (data: any) => {
     const payload = data?.data ?? {};
     if (payload.locale && !userLocaleOverride.value) { setLocale(payload.locale); }
     applyState(payload);
+});
+
+bridge.on('thumbnails', (data: any) => {
+    for (const item of data?.items ?? []) {
+        if (!item?.path) { continue; }
+        if (item.display) {
+            delete thumbMisses[item.path];
+            thumbs[item.path] = item.display;
+        } else {
+            thumbMisses[item.path] = true;
+        }
+    }
 });
 
 bridge.on('navigate', (data: any) => {
