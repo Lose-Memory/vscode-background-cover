@@ -13,12 +13,8 @@ export default {
     refresh:           'Refresh',
 
     localGallery:      'Local Gallery',
-    recentImages:      'Recently Used',
     addDirectory:      'Add Folder',
     inputPath:         'Input URL',
-    emptyRecent:       'No recent images yet — pick one to start.',
-    clearRecent:       'Clear',
-    clearRecentConfirm: 'Clear the recently used list?',
     confirm:           'OK',
     cancel:            'Cancel',
 

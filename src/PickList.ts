@@ -309,20 +309,6 @@ export class PickList {
         return false;
     }
 
-
-    private pushRecentImage(filePath: string): void {
-        try {
-            if (!filePath) { return; }
-            const context = getContext();
-            const normalize = (p: string) => p.replace(/\\/g, '/').toLowerCase();
-            const prev = context.globalState.get<string[]>('backgroundCoverRecentImages', []) || [];
-            const next = [filePath, ...prev.filter((p) => normalize(p) !== normalize(filePath))].slice(0, 20);
-            context.globalState.update('backgroundCoverRecentImages', next);
-        } catch (e) {
-            console.warn('[BackgroundCover] pushRecentImage failed:', e);
-        }
-    }
-
     public static listFolderImages(pathUrl: string): string[] {
         if (!pathUrl || pathUrl === '') { return []; }
         return listImagesInFolder(path.resolve(pathUrl), PickList.getScanDepth());
@@ -609,9 +595,6 @@ export class PickList {
             const proceed = await this.confirmLargeLocalImage(path);
             if (!proceed) { return false; }
         }
-
-        // Record into the most-recently-used list (for QuickPick reordering).
-        if (persist) { this.pushRecentImage(path); }
 
         const shouldDisableAuto = persist && this.isSingleImagePath(path);
         await this.setConfigValue('imagePath', path, true, persist);

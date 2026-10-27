@@ -12,76 +12,6 @@
             </el-button>
         </div>
 
-        <!-- Recent thumbnails -->
-        <el-card class="grid-card" shadow="never">
-            <template #header>
-                <div class="folder-header">
-                    <span class="card-title">
-                        <el-icon><PictureFilled /></el-icon>
-                        {{ t('recentImages') }}
-                        <el-tag size="small" round>{{ state.recentImages.length }}</el-tag>
-                    </span>
-                    <el-popconfirm
-                        v-if="state.recentImages.length > 0"
-                        :title="t('clearRecentConfirm')"
-                        :confirm-button-text="t('confirm')"
-                        :cancel-button-text="t('cancel')"
-                        width="220"
-                        @confirm="onClearRecent"
-                    >
-                        <template #reference>
-                            <el-button size="small" text>
-                                <el-icon><Delete /></el-icon>
-                                {{ t('clearRecent') }}
-                            </el-button>
-                        </template>
-                    </el-popconfirm>
-                </div>
-            </template>
-
-            <el-empty
-                v-if="state.recentImages.length === 0"
-                :description="t('emptyRecent')"
-                :image-size="60"
-            />
-            <div v-else class="thumb-grid">
-                <button
-                    v-for="img in state.recentImages"
-                    :key="img.path"
-                    type="button"
-                    class="thumb"
-                    :class="{ 'is-active': img.path === config.imagePath }"
-                    :title="img.name"
-                    :aria-label="t('thumbSelectLabel', { name: img.name })"
-                    :aria-pressed="img.path === config.imagePath"
-                    @click="onSelectRecent(img.path)"
-                >
-                    <video
-                        v-if="img.display && isVideoPath(img.path)"
-                        :src="img.display"
-                        :aria-label="t('videoThumbLabel', { name: img.name })"
-                        muted
-                        loop
-                        playsinline
-                        preload="none"
-                        @mouseenter="onHover($event, true)"
-                        @mouseleave="onHover($event, false)"
-                    />
-                    <img v-else-if="thumbSrc(img)" :src="thumbSrc(img)" :alt="img.name" loading="lazy" />
-                    <div v-else class="thumb-fallback">
-                        <el-icon><Picture /></el-icon>
-                    </div>
-                    <div v-if="isVideoPath(img.path)" class="thumb-kind">
-                        <el-icon><VideoCamera /></el-icon>
-                    </div>
-                    <div class="thumb-name">{{ img.name }}</div>
-                    <div v-if="img.path === config.imagePath" class="thumb-badge">
-                        <el-icon><Check /></el-icon>
-                    </div>
-                </button>
-            </div>
-        </el-card>
-
         <!-- Folder library (in-panel replacement for the native QuickPick after "Add Folder") -->
         <el-card v-if="config.randomImageFolder" class="grid-card" shadow="never">
             <template #header>
@@ -165,7 +95,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Plus, FolderAdd, FolderOpened, PictureFilled, Picture, Check, VideoCamera, Delete } from '@element-plus/icons-vue';
+import { Plus, FolderAdd, FolderOpened, Picture, Check, VideoCamera } from '@element-plus/icons-vue';
 import { useI18n } from '../composables/useI18n';
 import { useBridge } from '../composables/useBridge';
 import { config, state, thumbs, thumbMisses } from '../composables/useStore';
@@ -211,7 +141,6 @@ const pendingThumbPaths = computed(() => {
         if (!p || isVideoPath(p) || thumbs[p] || thumbMisses[p] || requestedThumbs.has(p)) { return; }
         out.push(p);
     };
-    state.recentImages.forEach(i => push(i.path));
     pagedFolderImages.value.forEach(i => push(i.path));
     return out;
 });
@@ -225,13 +154,6 @@ watch(pendingThumbPaths, (paths) => {
 
 function onPick()      { bridge.post({ type: 'runAction', action: ActionType.SelectPictures }); }
 function onAddDir()    { bridge.post({ type: 'runAction', action: ActionType.AddDirectory }); }
-function onSelectRecent(path: string) {
-    bridge.post({ type: 'runAction', action: ActionType.UpdateBackground, path });
-}
-function onClearRecent() {
-    state.recentImages = [];
-    bridge.post({ type: 'clearRecentImages' });
-}
 function onApplyFolderImage(path: string) {
     bridge.post({ type: 'setConfig', key: 'imagePath', value: path });
 }

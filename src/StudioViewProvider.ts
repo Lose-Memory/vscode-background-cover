@@ -123,13 +123,6 @@ export class StudioViewProvider implements WebviewViewProvider {
         const imagePath = resolveCurrentImagePath(cfg.get<string>('imagePath') || '');
         const imagePathDisplay = this.toWebviewUri(imagePath);
 
-        const recentRaw = gs.get<string[]>('backgroundCoverRecentImages', []) || [];
-        const recentImages = recentRaw.map(p => ({
-            path: p,
-            display: this.toWebviewUri(p),
-            name: this.basename(p)
-        }));
-
         const folder = expandPathVariables(cfg.get<string>('randomImageFolder') || '');
         let folderImages: { path: string; display: string; name: string }[] = [];
         let folderImagesTotal = 0;
@@ -179,9 +172,8 @@ export class StudioViewProvider implements WebviewViewProvider {
                     backgroundTransition: true
                 },
                 state: {
-                    recentImages,
                     folderImages,
-                    folderImagesTotal,
+                    folderImagesTotal
                 }
             }
         });
@@ -238,11 +230,6 @@ export class StudioViewProvider implements WebviewViewProvider {
                 }
                 return;
             }
-
-            case 'clearRecentImages':
-                await this.ctx.globalState.update('backgroundCoverRecentImages', []);
-                this.pushState();
-                return;
 
             case 'applyDecorations':
                 await this.applyDecorations();

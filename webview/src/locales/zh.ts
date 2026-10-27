@@ -13,12 +13,8 @@ export default {
     refresh:           '刷新',
 
     localGallery:      '本地图库',
-    recentImages:      '最近使用',
     addDirectory:      '添加目录',
     inputPath:         '输入 URL',
-    emptyRecent:       '还没有最近使用的图片 — 选一张开始吧。',
-    clearRecent:       '清除记录',
-    clearRecentConfirm: '确定清除最近使用记录吗？',
     confirm:           '确定',
     cancel:            '取消',
 

@@ -19,7 +19,6 @@ export interface StudioConfig {
 }
 
 export interface StudioState {
-    recentImages: Array<{ path: string; display: string; name: string }>;
     folderImages: Array<{ path: string; display: string; name: string }>;
     folderImagesTotal: number;
 }
@@ -38,7 +37,6 @@ export const config = reactive<StudioConfig>({
 });
 
 export const state = reactive<StudioState>({
-    recentImages: [],
     folderImages: [],
     folderImagesTotal: 0
 });
