@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import {
 	QuickPick,
 	Disposable,
@@ -20,7 +19,7 @@ import { FileDom } from './FileDom';
 import { BackgroundPatchError, BackgroundApplyCancelledError, pickUnusedCandidate } from './downloadError';
 import { ImgItem } from './ImgItem';
 import vsHelp from './vsHelp';
-import { getContext, onDidChangeGlobalState } from './global';
+import { getContext } from './global';
 import { hasCurrentImageRecord, resolveCurrentBlur, resolveCurrentImagePath, resolveCurrentOpacity, setCurrentBlur, setCurrentImagePath, setCurrentOpacity } from './windowBackground';
 import { expandPathVariables, isSupportedMedia, MEDIA_EXTS, pickRandomFromFolder } from './pathUtil';
 
@@ -44,8 +43,6 @@ export enum ActionType {
     SetSizeMode = 16,
     BackgroundBlur = 18,
     AutoRandomSettings = 20,
-    SelectPet = 26,
-    TogglePet = 27
 }
 
 // Input Types Enum
@@ -56,104 +53,12 @@ enum InputType {
     AutoRandomSettings = 4
 }
 
-export interface PetEntry {
-    value: string;
-    label: string;
-    desc: string;
-    folder: string;
-    idle: string;
-    walk: string;
-    source?: 'builtin' | 'codex';
-    spritesheetPath?: string;
-}
 
 interface UpdateBackgroundOptions {
     skipLargeImagePrompt?: boolean;
 }
 
 const AUTO_IMAGE_ATTEMPTS = 3;
-
-/** Single source of truth for available pets (used by PickList + FileDom + Studio webview). */
-export const PET_LIST: PetEntry[] = [
-    { value: 'akita',       label: 'Akita (Dog)', desc: '秋田犬',  folder: 'dog',         idle: 'akita_idle_8fps.gif',  walk: 'akita_walk_8fps.gif' },
-    { value: 'totoro',      label: 'Totoro',      desc: '龙猫',    folder: 'totoro',      idle: 'gray_idle_8fps.gif',   walk: 'gray_walk_8fps.gif' },
-    { value: 'fox',         label: 'Fox',         desc: '狐狸',    folder: 'fox',         idle: 'red_idle_8fps.gif',    walk: 'red_walk_8fps.gif' },
-    { value: 'pika',        label: 'Pika',        desc: '皮卡丘',  folder: 'pika',        idle: 'pika_still.gif',       walk: 'pika_run.gif' },
-    { value: 'deno2',       label: 'Deno2',       desc: '恐龙2',   folder: 'deno2',       idle: 'deno2_idle_8fps.gif',  walk: 'deno2_walk_8fps.gif' },
-    { value: 'clippy',      label: 'Clippy',      desc: '大眼夹',  folder: 'clippy',      idle: 'black_idle_8fps.gif',  walk: 'brown_walk_8fps.gif' },
-    { value: 'rubber-duck', label: 'Rubber Duck', desc: '小黄鸭',  folder: 'rubber-duck', idle: 'yellow_idle_8fps.gif', walk: 'yellow_walk_8fps.gif' },
-    { value: 'crab',        label: 'Crab',        desc: '螃蟹',    folder: 'crab',        idle: 'red_idle_8fps.gif',    walk: 'red_walk_8fps.gif' },
-    { value: 'zappy',       label: 'Zappy',       desc: '闪电',    folder: 'zappy',       idle: 'yellow_idle_8fps.gif', walk: 'yellow_walk_8fps.gif' },
-    { value: 'cockatiel',   label: 'Cockatiel',   desc: '玄凤鹦鹉',folder: 'cockatiel',   idle: 'brown_idle_8fps.gif',  walk: 'brown_walk_8fps.gif' },
-    { value: 'snake',       label: 'Snake',       desc: '蛇',      folder: 'snake',       idle: 'green_idle_8fps.gif',  walk: 'green_walk_8fps.gif' },
-    { value: 'chicken',     label: 'Chicken',     desc: '鸡',      folder: 'chicken',     idle: 'white_idle_8fps.gif',  walk: 'white_walk_8fps.gif' },
-    { value: 'turtle',      label: 'Turtle',      desc: '乌龟',    folder: 'turtle',      idle: 'green_idle_8fps.gif',  walk: 'green_walk_8fps.gif' },
-    { value: 'panda',       label: 'Panda',       desc: '熊猫',    folder: 'panda',       idle: 'black_idle_8fps.gif',  walk: 'black_walk_8fps.gif' },
-    { value: 'snail',       label: 'Snail',       desc: '蜗牛',    folder: 'snail',       idle: 'brown_idle_8fps.gif',  walk: 'brown_walk_8fps.gif' },
-    { value: 'deno',        label: 'Deno',        desc: '恐龙',    folder: 'deno',        idle: 'green_idle_8fps.gif',  walk: 'green_walk_8fps.gif' },
-    { value: 'morph',       label: 'Morph',       desc: 'Morph',   folder: 'morph',       idle: 'purple_idle_8fps.gif', walk: 'purple_walk_8fps.gif' },
-];
-
-let codexPetCache: PetEntry[] | undefined;
-
-function getCodexHome(): string {
-    return process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
-}
-
-export function getCodexPetList(): PetEntry[] {
-    if (codexPetCache) { return codexPetCache; }
-
-    const petsRoot = path.join(getCodexHome(), 'pets');
-    const entries: PetEntry[] = [];
-    try {
-        if (!fs.existsSync(petsRoot) || !fs.statSync(petsRoot).isDirectory()) {
-            codexPetCache = [];
-            return codexPetCache;
-        }
-
-        for (const folderName of fs.readdirSync(petsRoot)) {
-            const folder = path.join(petsRoot, folderName);
-            const manifestPath = path.join(folder, 'pet.json');
-            if (!fs.existsSync(manifestPath) || !fs.statSync(manifestPath).isFile()) { continue; }
-
-            try {
-                const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-                const id = typeof manifest.id === 'string' && manifest.id.trim() ? manifest.id.trim() : folderName;
-                const displayName = typeof manifest.displayName === 'string' && manifest.displayName.trim()
-                    ? manifest.displayName.trim()
-                    : id;
-                const description = typeof manifest.description === 'string' ? manifest.description.trim() : 'Codex pet';
-                const spritesheetName = typeof manifest.spritesheetPath === 'string' && manifest.spritesheetPath.trim()
-                    ? manifest.spritesheetPath.trim()
-                    : 'spritesheet.webp';
-                const spritesheetPath = path.resolve(folder, spritesheetName);
-                if (!fs.existsSync(spritesheetPath) || !fs.statSync(spritesheetPath).isFile()) { continue; }
-
-                entries.push({
-                    value: `codex:${id}`,
-                    label: `${displayName} (Codex)`,
-                    desc: description || 'Codex pet',
-                    folder,
-                    idle: spritesheetName,
-                    walk: spritesheetName,
-                    source: 'codex',
-                    spritesheetPath
-                });
-            } catch (error) {
-                console.warn('[BackgroundCover] Failed to load Codex pet manifest:', manifestPath, error);
-            }
-        }
-    } catch (error) {
-        console.warn('[BackgroundCover] Failed to scan Codex pets:', error);
-    }
-
-    codexPetCache = entries;
-    return codexPetCache;
-}
-
-export function getAllPets(): PetEntry[] {
-    return PET_LIST.concat(getCodexPetList());
-}
 
 export class PickList {
     public static itemList: PickList | undefined;
@@ -348,57 +253,8 @@ export class PickList {
             case ActionType.BackgroundBlur: this.showBlurSlider(); break;
             case ActionType.AutoRandomSettings: this.showInputBox(InputType.AutoRandomSettings); break;
 
-            // Pet Assistant
-            case ActionType.SelectPet: path ? this.selectPet(path) : this.showPetSelection(); break;
-            case ActionType.TogglePet: this.togglePet(); break;
-
             default: break;
         }
-    }
-
-    public getPetSelectionItems(): ImgItem[] {
-        const currentPet = getContext().globalState.get('backgroundCoverPetType', 'akita');
-        return getAllPets().map(p => ({
-            label: `$(github) ${p.label}`,
-            detail: `${p.desc} ${currentPet === p.value ? '$(check)' : ''}`,
-            imageType: ActionType.SelectPet,
-            path: p.value
-        }));
-    }
-
-    private showPetSelection() {
-        this.showSubMenu(this.getPetSelectionItems());
-    }
-
-    private selectPet(petType: string) {
-        this.setContextValue('backgroundCoverPetType', petType, true);
-        if (this.quickPick) { this.quickPick.hide(); }
-    }
-
-    /**
-     * 子菜单统一入口：有父级 QuickPick 时复用它（构造函数里挂了唯一的 accept 分发），
-     * 否则（树视图 / webview 触发）临时建一个，关闭即释放，不会累积监听。
-     */
-    private showSubMenu(items: ImgItem[]) {
-        if (this.quickPick) {
-            this.quickPick.items = items;
-            this.quickPick.show();
-            return;
-        }
-        const picker = window.createQuickPick<ImgItem>();
-        picker.items = items;
-        picker.onDidAccept(() => {
-            const selected = picker.selectedItems[0];
-            picker.hide();
-            if (selected) { void this.handleAction(selected.imageType, selected.path); }
-        });
-        picker.onDidHide(() => picker.dispose());
-        picker.show();
-    }
-
-    private togglePet() {
-        const currentValue = getContext().globalState.get('backgroundCoverPetEnabled', false);
-        this.setContextValue('backgroundCoverPetEnabled', !currentValue, true);
     }
 
     private gotoPath(path?: string) {
@@ -841,13 +697,6 @@ export class PickList {
             default: break;
         }
         if (updateDom) { await this.updateDom(); }
-        return true;
-    }
-
-    private setContextValue(name: string, value: any, updateDom: Boolean = true) {
-        getContext().globalState.update(name, value);
-        onDidChangeGlobalState.fire();
-        if (updateDom) { this.updateDom(); }
         return true;
     }
 

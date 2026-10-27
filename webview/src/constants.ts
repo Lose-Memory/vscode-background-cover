@@ -12,9 +12,7 @@ export const ActionType = {
     ReloadWindow:        8,
     OpenFilePath:        14,
     BackgroundBlur:      18,
-    AutoRandomSettings:  20,
-    SelectPet:           26,
-    TogglePet:           27
+    AutoRandomSettings:  20
 } as const;
 
 export const SIZE_MODES = [

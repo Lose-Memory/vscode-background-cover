@@ -14,21 +14,15 @@ import {
     workspace,
     Disposable
 } from 'vscode';
-import { PickList, getAllPets } from './PickList';
+import { PickList } from './PickList';
 import { onDidChangeGlobalState } from './global';
 import { resolveCurrentBlur, resolveCurrentImagePath, resolveCurrentOpacity } from './windowBackground';
 import { expandPathVariables } from './pathUtil';
 
 const PUSH_DEBOUNCE_MS = 120;
 
-const DECORATION_STATE_KEYS = [
-    'backgroundCoverPetEnabled',
-    'backgroundCoverPetType',
-    'backgroundCoverPetMessages'
-];
-
 /** globalState keys the webview may write directly via `setGlobalState`. */
-const WEBVIEW_WRITABLE_STATE_KEYS = new Set<string>([...DECORATION_STATE_KEYS, 'backgroundCoverLocale']);
+const WEBVIEW_WRITABLE_STATE_KEYS = new Set<string>(['backgroundCoverLocale']);
 
 /**
  * Vue-powered single-pane configuration webview.
@@ -41,7 +35,7 @@ const WEBVIEW_WRITABLE_STATE_KEYS = new Set<string>([...DECORATION_STATE_KEYS, '
  *   { type: 'runAction', action: number, path?: string }
  *   { type: 'setConfig', key: string, value: any }
  *   { type: 'setGlobalState', key: string, value: any }
- *   { type: 'applyDecorations', state: { ... } }
+ *   { type: 'applyDecorations' }
  *   { type: 'openExternal', url: string }
  *
  * Outbound:
@@ -150,16 +144,6 @@ export class StudioViewProvider implements WebviewViewProvider {
             folderImagesTotal = 0;
         }
 
-        const petRoot = Uri.joinPath(this.ctx.extensionUri, 'resources', 'pet');
-        const pets = getAllPets().map(p => {
-            const thumbUri = p.source === 'codex' && p.spritesheetPath
-                ? Uri.file(p.spritesheetPath)
-                : Uri.joinPath(petRoot, p.folder, p.idle);
-            let thumb = '';
-            try { thumb = this.view!.webview.asWebviewUri(thumbUri).toString(); } catch { thumb = ''; }
-            return { value: p.value, label: p.label, desc: p.desc, thumb };
-        });
-
         let brandLogo = '';
         try {
             const logoUri = Uri.joinPath(this.ctx.extensionUri, 'resources', 'background-cover.png');
@@ -191,13 +175,9 @@ export class StudioViewProvider implements WebviewViewProvider {
                     backgroundTransition: true
                 },
                 state: {
-                    petEnabled: gs.get('backgroundCoverPetEnabled') ?? false,
-                    petType: gs.get('backgroundCoverPetType') ?? '',
-                    petMessages: gs.get('backgroundCoverPetMessages') ?? '',
                     recentImages,
                     folderImages,
                     folderImagesTotal,
-                    pets
                 }
             }
         });
@@ -246,7 +226,7 @@ export class StudioViewProvider implements WebviewViewProvider {
                 return;
 
             case 'applyDecorations':
-                await this.applyDecorations(msg.state || {});
+                await this.applyDecorations();
                 return;
 
             case 'openExternal':
@@ -257,13 +237,7 @@ export class StudioViewProvider implements WebviewViewProvider {
         }
     }
 
-    private async applyDecorations(state: any): Promise<void> {
-        for (const key of DECORATION_STATE_KEYS) {
-            if (Object.prototype.hasOwnProperty.call(state, key)) {
-                await this.ctx.globalState.update(key, state[key]);
-            }
-        }
-        onDidChangeGlobalState.fire();
+    private async applyDecorations(): Promise<void> {
         await PickList.applyCurrentBackground();
         await commands.executeCommand('workbench.action.reloadWindow');
     }
@@ -293,7 +267,6 @@ export class StudioViewProvider implements WebviewViewProvider {
         };
         add(Uri.joinPath(this.ctx.extensionUri, 'webview-dist').fsPath);
         add(Uri.joinPath(this.ctx.extensionUri, 'resources').fsPath);
-        add(path.join(process.env.CODEX_HOME || path.join(process.env.HOME || '', '.codex'), 'pets'));
         add(this.ctx.globalStorageUri?.fsPath);
         add(this.ctx.storageUri?.fsPath);
         (workspace.workspaceFolders || []).forEach(f => add(f.uri.fsPath));

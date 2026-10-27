@@ -19,13 +19,9 @@ export interface StudioConfig {
 }
 
 export interface StudioState {
-    petEnabled: boolean;
-    petType: string;
-    petMessages: string;
     recentImages: Array<{ path: string; display: string; name: string }>;
     folderImages: Array<{ path: string; display: string; name: string }>;
     folderImagesTotal: number;
-    pets: Array<{ value: string; label: string; desc: string; thumb: string }>;
 }
 
 export const config = reactive<StudioConfig>({
@@ -42,13 +38,9 @@ export const config = reactive<StudioConfig>({
 });
 
 export const state = reactive<StudioState>({
-    petEnabled: false,
-    petType: '',
-    petMessages: '',
     recentImages: [],
     folderImages: [],
-    folderImagesTotal: 0,
-    pets: []
+    folderImagesTotal: 0
 });
 
 export interface StudioBrand {
