@@ -32,8 +32,14 @@ function loadSharp(): SharpFactory | null {
     return sharpFactory;
 }
 
-export function thumbnailsDir(): string {
-    return path.join(getContext().globalStorageUri.fsPath, 'thumbnails');
+/** 取不到 globalStorage（例如测试环境）时返回 undefined，缩略图整体降级。 */
+export function thumbnailsDir(): string | undefined {
+    try {
+        const storage = getContext().globalStorageUri;
+        return storage && storage.fsPath ? path.join(storage.fsPath, 'thumbnails') : undefined;
+    } catch {
+        return undefined;
+    }
 }
 
 let running = 0;
@@ -56,9 +62,9 @@ function release(): void {
     running -= 1;
 }
 
-function thumbFile(filePath: string, mtimeMs: number): string {
+function thumbFile(dir: string, filePath: string, mtimeMs: number): string {
     const key = crypto.createHash('sha1').update(path.resolve(filePath)).digest('hex').slice(0, 16);
-    return path.join(thumbnailsDir(), `${key}-${Math.round(mtimeMs)}.webp`);
+    return path.join(dir, `${key}-${Math.round(mtimeMs)}.webp`);
 }
 
 /**
@@ -66,6 +72,8 @@ function thumbFile(filePath: string, mtimeMs: number): string {
  */
 export async function getThumbnail(filePath: string): Promise<string | undefined> {
     if (!filePath || isVideoFile(filePath)) { return undefined; }
+    const dir = thumbnailsDir();
+    if (!dir) { return undefined; }
 
     let mtimeMs = 0;
     try {
@@ -76,7 +84,7 @@ export async function getThumbnail(filePath: string): Promise<string | undefined
         return undefined;
     }
 
-    const target = thumbFile(filePath, mtimeMs);
+    const target = thumbFile(dir, filePath, mtimeMs);
     if (fs.existsSync(target)) { return target; }
 
     const sharp = loadSharp();
@@ -85,7 +93,7 @@ export async function getThumbnail(filePath: string): Promise<string | undefined
     await acquire();
     try {
         if (!fs.existsSync(target)) {
-            fs.mkdirSync(thumbnailsDir(), { recursive: true });
+            fs.mkdirSync(dir, { recursive: true });
             const tmp = `${target}.tmp`;
             await sharp(filePath, { failOn: 'none' })
                 .rotate()
@@ -106,6 +114,7 @@ export async function getThumbnail(filePath: string): Promise<string | undefined
 /** 清掉 30 天没被访问过的缩略图，避免缓存目录无限增长。 */
 export async function pruneOldThumbnails(): Promise<void> {
     const dir = thumbnailsDir();
+    if (!dir) { return; }
     let names: string[];
     try {
         names = fs.readdirSync(dir);
