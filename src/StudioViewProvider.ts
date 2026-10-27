@@ -40,7 +40,7 @@ const WEBVIEW_WRITABLE_STATE_KEYS = new Set<string>(['backgroundCoverLocale']);
  *
  * Outbound:
  *   { type: 'state', data: { locale, config, state } }
- *   { type: 'navigate', tab: 'home'|'advanced'|'decoration' }
+ *   { type: 'navigate', tab: 'home'|'advanced' }
  */
 export class StudioViewProvider implements WebviewViewProvider {
 
@@ -52,7 +52,7 @@ export class StudioViewProvider implements WebviewViewProvider {
     private allowedRoots = new Set<string>();
     private pushTimer?: ReturnType<typeof setTimeout>;
     /** Folder listing cache keyed by folder path + mtime; avoids readdir on every push. */
-    private folderCache?: { folder: string; mtimeMs: number; names: string[] };
+    private folderCache?: { folder: string; mtimeMs: number; depth: number; names: string[] };
 
     constructor(private readonly ctx: ExtensionContext) {}
 
@@ -98,15 +98,16 @@ export class StudioViewProvider implements WebviewViewProvider {
         }, PUSH_DEBOUNCE_MS);
     }
 
-    /** List folder media, reusing the previous listing while the directory mtime is unchanged. */
+    /** List folder media, reusing the previous listing while the directory mtime and scan depth are unchanged. */
     private listFolder(folder: string): string[] {
         const mtimeMs = fs.statSync(folder).mtimeMs;
+        const depth = PickList.getScanDepth();
         const c = this.folderCache;
-        if (c && c.folder === folder && c.mtimeMs === mtimeMs) {
+        if (c && c.folder === folder && c.mtimeMs === mtimeMs && c.depth === depth) {
             return c.names;
         }
         const names = PickList.listFolderImages(folder);
-        this.folderCache = { folder, mtimeMs, names };
+        this.folderCache = { folder, mtimeMs, depth, names };
         return names;
     }
 
@@ -134,10 +135,11 @@ export class StudioViewProvider implements WebviewViewProvider {
             if (folder && fs.existsSync(folder) && fs.statSync(folder).isDirectory()) {
                 const names = this.listFolder(folder);
                 folderImagesTotal = names.length;
-                folderImages = names.slice(0, 2000).map(name => {
-                    const full = path.join(folder, name);
-                    return { path: full, display: this.toWebviewUri(full), name };
-                });
+                folderImages = names.slice(0, 2000).map(full => ({
+                    path: full,
+                    display: this.toWebviewUri(full),
+                    name: this.basename(full)
+                }));
             }
         } catch {
             folderImages = [];
@@ -184,7 +186,7 @@ export class StudioViewProvider implements WebviewViewProvider {
     }
 
     /** Programmatic navigation hook for `view/title` menu commands. */
-    public navigate(tab: 'home' | 'advanced' | 'decoration'): void {
+    public navigate(tab: 'home' | 'advanced'): void {
         this.view?.webview.postMessage({ type: 'navigate', tab });
     }
 

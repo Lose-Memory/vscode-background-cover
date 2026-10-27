@@ -21,7 +21,7 @@ import { ImgItem } from './ImgItem';
 import vsHelp from './vsHelp';
 import { getContext } from './global';
 import { hasCurrentImageRecord, resolveCurrentBlur, resolveCurrentImagePath, resolveCurrentOpacity, setCurrentBlur, setCurrentImagePath, setCurrentOpacity } from './windowBackground';
-import { expandPathVariables, isSupportedMedia, MEDIA_EXTS, pickRandomFromFolder } from './pathUtil';
+import { expandPathVariables, FOLDER_SCAN_DEFAULT_DEPTH, FOLDER_SCAN_MAX_DEPTH, listImagesInFolder, MEDIA_EXTS, pickRandomFromFolder } from './pathUtil';
 
 
 
@@ -274,7 +274,7 @@ export class PickList {
         this.silentApply = !persist;
         const randomImageFolder = this.resolveRandomFolder(this.config.get<string>('randomImageFolder'));
         if (randomImageFolder) {
-            const files = this.getFolderImgList(randomImageFolder).map(file => path.join(randomImageFolder, file));
+            const files = this.getFolderImgList(randomImageFolder);
             if (files.length > 0) {
                 if (!persist) {
                     return await this.applyAutoCandidates(files, persist);
@@ -325,7 +325,14 @@ export class PickList {
 
     public static listFolderImages(pathUrl: string): string[] {
         if (!pathUrl || pathUrl === '') { return []; }
-        return fs.readdirSync(path.resolve(pathUrl)).filter((s) => isSupportedMedia(s));
+        return listImagesInFolder(path.resolve(pathUrl), PickList.getScanDepth());
+    }
+
+    /** 读取用户设定的子目录扫描层数（0 = 只看当前目录）。 */
+    public static getScanDepth(): number {
+        const raw = workspace.getConfiguration('backgroundCover').get<number>('folderScanDepth', FOLDER_SCAN_DEFAULT_DEPTH);
+        const value = typeof raw === 'number' && Number.isFinite(raw) ? Math.floor(raw) : FOLDER_SCAN_DEFAULT_DEPTH;
+        return Math.min(Math.max(value, 0), FOLDER_SCAN_MAX_DEPTH);
     }
 
     private getFolderImgList(pathUrl: string): string[] {
@@ -532,7 +539,7 @@ export class PickList {
 
         if (type === InputType.Path) {
             value = expandPathVariables(value);
-            const folderPicked = pickRandomFromFolder(value);
+            const folderPicked = pickRandomFromFolder(value, PickList.getScanDepth());
             if (folderPicked) { value = folderPicked; }
             if (!fs.existsSync(path.resolve(value))) {
                 window.showWarningMessage('No access to the file or the file does not exist! / 无权限访问文件或文件不存在！');

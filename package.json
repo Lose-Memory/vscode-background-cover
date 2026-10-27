@@ -96,6 +96,13 @@
                     "default": "",
                     "description": "Background image's folder path for random / 图片目录"
                 },
+                "backgroundCover.folderScanDepth": {
+                    "type": "number",
+                    "default": 3,
+                    "minimum": 0,
+                    "maximum": 10,
+                    "description": "How many levels of sub-directories to scan for images (0 = current folder only, default 3) / 扫描子目录的层数（0 = 只看当前目录，默认 3 层）"
+                },
                 "backgroundCover.autoStatus": {
                     "type": "boolean",
                     "default": false,

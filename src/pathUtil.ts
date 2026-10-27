@@ -57,17 +57,20 @@ export function isVideoFile(name: string): boolean {
 }
 
 /** 扫描上限：防止把整个 ~/ 或网盘挂载目录同步递归一遍卡住扩展宿主。 */
-export const FOLDER_SCAN_MAX_DEPTH = 6;
-export const FOLDER_SCAN_MAX_FILES = 5000;
+export const FOLDER_SCAN_DEFAULT_DEPTH = 3;
+export const FOLDER_SCAN_MAX_DEPTH = 10;
+export const FOLDER_SCAN_MAX_FILES = 10000;
 const FOLDER_SCAN_CACHE_TTL_MS = 30_000;
 const folderScanCache = new Map<string, { mtimeMs: number; at: number; files: string[] }>();
 
 /**
  * 递归扫描文件夹下的图片/视频文件（深度优先，目录按字母序保证结果稳定）。
  * 只返回文件，忽略子目录与不可读条目；空/不存在/非目录返回 []。
- * 有深度与数量上限；结果按根目录 mtime + 短 TTL 缓存，自动换图时不必每次重扫。
+ * maxDepth 为向下递归的层数（0 = 只看当前目录）。
+ * 有深度与数量上限；结果按根目录 mtime + 深度 + 短 TTL 缓存，自动换图时不必每次重扫。
  */
-export function listImagesInFolder(folder: string): string[] {
+export function listImagesInFolder(folder: string, maxDepth: number = FOLDER_SCAN_DEFAULT_DEPTH): string[] {
+    const depthLimit = Number.isFinite(maxDepth) ? Math.max(0, Math.floor(maxDepth)) : FOLDER_SCAN_DEFAULT_DEPTH;
     let root: string;
     let rootMtime = 0;
     try {
@@ -76,7 +79,8 @@ export function listImagesInFolder(folder: string): string[] {
     } catch {
         return [];
     }
-    const cached = folderScanCache.get(root);
+    const cacheKey = `${root}|${depthLimit}`;
+    const cached = folderScanCache.get(cacheKey);
     if (cached && cached.mtimeMs === rootMtime && Date.now() - cached.at < FOLDER_SCAN_CACHE_TTL_MS) {
         return cached.files.slice();
     }
@@ -85,7 +89,7 @@ export function listImagesInFolder(folder: string): string[] {
     const seen = new Set<string>();
 
     const walk = (dir: string, depth: number) => {
-        if (depth > FOLDER_SCAN_MAX_DEPTH || results.length >= FOLDER_SCAN_MAX_FILES) {
+        if (depth > depthLimit || results.length >= FOLDER_SCAN_MAX_FILES) {
             return;
         }
         let normalized: string;
@@ -124,7 +128,7 @@ export function listImagesInFolder(folder: string): string[] {
     };
 
     walk(root, 0);
-    folderScanCache.set(root, { mtimeMs: rootMtime, at: Date.now(), files: results });
+    folderScanCache.set(cacheKey, { mtimeMs: rootMtime, at: Date.now(), files: results });
     return results.slice();
 }
 
@@ -132,7 +136,7 @@ export function listImagesInFolder(folder: string): string[] {
  * 若 input 展开后是一个本地目录，随机返回其中一张图片/视频的完整路径；
  * 否则返回 undefined（保持调用方原有单文件/URL 逻辑）。
  */
-export function pickRandomFromFolder(input: string): string | undefined {
+export function pickRandomFromFolder(input: string, maxDepth: number = FOLDER_SCAN_DEFAULT_DEPTH): string | undefined {
     const expanded = expandPathVariables(input);
     let stat: fs.Stats;
     try {
@@ -143,7 +147,7 @@ export function pickRandomFromFolder(input: string): string | undefined {
     if (!stat.isDirectory()) {
         return undefined;
     }
-    const files = listImagesInFolder(expanded);
+    const files = listImagesInFolder(expanded, maxDepth);
     if (!files.length) {
         return undefined;
     }
