@@ -126,8 +126,7 @@ export function activate(context: ExtensionContext) {
 		commands.registerCommand('backgroundCover.switchMode', () => {
 			commands.executeCommand('setContext', 'backgroundCover.mode', 'menu');
 			studioViewProvider.navigate('home');
-		}),
-		commands.registerCommand('backgroundCover.support', () => PickList.gotoFilePath('//resources//support.jpg'))
+		})
 	);
 
 	// Register Command for Tree Item Click

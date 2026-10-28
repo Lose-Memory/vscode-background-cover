@@ -6,6 +6,12 @@
 -->
 ## 更新日志
 
+#### ver 3.9.8 移除原作者个人信息
+
+    1. README 重写：删除原作者的收款码、微信群二维码、贡献者头像墙、个人信息区块与外部图库站点链接，只在文末保留一行致谢并指向项目原始地址。
+    2. 移除扩展本体里的收款码与微信群入口：删除 `resources/support.jpg`、`resources/wx.jpg`，移除首页「赞助作者」「微信群聊」按钮、高级页「赞助作者」按钮、`backgroundCover.support` 命令（含面板标题栏图标）与 vsHelp 中的赞助/加群弹窗。
+    3. `package.json` 的仓库地址、Issues 地址与 homepage 改为指向本 fork，移除原作者邮箱；面板「关于」区的仓库 / Issues 链接同步改为本 fork。
+
 #### ver 3.9.7 单图取景位置真正落到窗口
 
     1. 修复「单张竖图的取景位置只改预览、真实窗口始终用全局值」：生成 CSS 前 `initializeImage()` 会把图片路径改写成 `vscode-file://vscode-app/...`，而单图取景值是按本地路径存储在 `image-positions.json` 里的，于是查表永远查不到、静默回落成全局百分比。现在单独保留一份未被改写的本地路径（`sourceImagePath`）用于查表，单图设置会正常写入 CSS。

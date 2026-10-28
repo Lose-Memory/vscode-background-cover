@@ -24,5 +24,5 @@ export const SIZE_MODES = [
 export const BLEND_MODES = ['auto', 'multiply', 'lighten'];
 
 /** 关于区入口（仓库 / Issues / Star）。 */
-export const GITHUB_REPO_URL = 'https://github.com/AShujiao/vscode-background-cover';
-export const GITHUB_ISSUES_URL = 'https://github.com/AShujiao/vscode-background-cover/issues';
+export const GITHUB_REPO_URL = 'https://github.com/Lose-Memory/vscode-background-cover';
+export const GITHUB_ISSUES_URL = 'https://github.com/Lose-Memory/vscode-background-cover/issues';

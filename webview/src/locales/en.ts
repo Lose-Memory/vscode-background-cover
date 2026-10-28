@@ -32,13 +32,11 @@ export default {
 
     notSet:            'Not set',
     apply:             'Apply',
-    supportAuthor:     'Support Author',
     actionCenter:      'Action Center',
     about:             'About',
     repository:        'Repository',
     issues:            'Issues',
     starOnGithub:      'Star',
-    wechatGroup:       'WeChat Group',
 
     language:          'Language',
     langEnglish:       'English',

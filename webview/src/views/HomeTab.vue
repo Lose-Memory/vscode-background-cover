@@ -106,10 +106,6 @@
                     <span class="tile-icon tile-icon--red"><el-icon><Delete /></el-icon></span>
                     <span class="tile-label">{{ t('clearBackground') }}</span>
                 </button>
-                <button class="action-tile" @click="onSupport">
-                    <span class="tile-icon tile-icon--pink"><el-icon><Star /></el-icon></span>
-                    <span class="tile-label">{{ t('supportAuthor') }}</span>
-                </button>
             </div>
         </el-card>
 
@@ -134,10 +130,6 @@
                     <span class="tile-icon tile-icon--gold"><el-icon><StarFilled /></el-icon></span>
                     <span class="about-label">{{ t('starOnGithub') }}</span>
                 </button>
-                <button class="about-tile" @click="onWechat">
-                    <span class="tile-icon tile-icon--green"><el-icon><ChatLineRound /></el-icon></span>
-                    <span class="about-label">{{ t('wechatGroup') }}</span>
-                </button>
             </div>
         </el-card>
     </div>
@@ -145,7 +137,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Picture, Upload, Operation, RefreshRight, Delete, Grid, Star, Link, ChatDotRound, ChatLineRound, StarFilled } from '@element-plus/icons-vue';
+import { Picture, Upload, Operation, RefreshRight, Delete, Grid, Link, ChatDotRound, StarFilled } from '@element-plus/icons-vue';
 import { useI18n } from '../composables/useI18n';
 import { useBridge } from '../composables/useBridge';
 import { useDebouncedPost } from '../composables/useDebouncedPost';
@@ -230,9 +222,6 @@ function onBlurInput(v: number) {
 function onPick()    { bridge.post({ type: 'runAction', action: ActionType.SelectPictures }); }
 function onClear()   { bridge.post({ type: 'runAction', action: ActionType.CloseBackground }); }
 function onRefresh() { bridge.post({ type: 'runAction', action: ActionType.UpdateBackground }); }
-function onSupport()   { bridge.post({ type: 'runAction', action: ActionType.OpenFilePath, path: '//resources//support.jpg' }); }
-
-function onWechat()    { bridge.post({ type: 'runAction', action: ActionType.OpenFilePath, path: '//resources//wx.jpg' }); }
 
 function onRepo()   { bridge.post({ type: 'openExternal', url: GITHUB_REPO_URL }); }
 function onIssues() { bridge.post({ type: 'openExternal', url: GITHUB_ISSUES_URL }); }

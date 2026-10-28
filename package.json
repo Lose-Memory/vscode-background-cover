@@ -2,7 +2,7 @@
     "name": "background-cover",
     "displayName": "background-cover",
     "description": "Add a picture you like to cover the entire vscode background (Hot Reload Supported). / 添加你喜欢的图片覆盖整个vscode背景（支持热更新）",
-    "version": "3.9.7",
+    "version": "3.9.8",
     "publisher": "manasxx",
     "engines": {
         "vscode": "^1.38.0"
@@ -51,11 +51,6 @@
                 "command": "backgroundCover.switchMode",
                 "title": "配置",
                 "icon": "$(settings-gear)"
-            },
-            {
-                "command": "backgroundCover.support",
-                "title": "赞助",
-                "icon": "$(heart)"
             }
         ],
         "keybindings": [
@@ -192,24 +187,18 @@
                     "command": "backgroundCover.refreshEntry",
                     "when": "view == backgroundCover.studio",
                     "group": "navigation@0"
-                },
-                {
-                    "command": "backgroundCover.support",
-                    "when": "view == backgroundCover.studio",
-                    "group": "navigation@1"
                 }
             ]
         }
     },
     "bugs": {
-        "url": "https://github.com/AShujiao/vscode-background-cover/issues",
-        "email": "a916817706@live.com"
+        "url": "https://github.com/Lose-Memory/vscode-background-cover/issues"
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/AShujiao/vscode-background-cover.git"
+        "url": "https://github.com/Lose-Memory/vscode-background-cover.git"
     },
-    "homepage": "https://github.com/AShujiao/vscode-background-cover/blob/master/README.md#manasxx-readme",
+    "homepage": "https://github.com/Lose-Memory/vscode-background-cover#readme",
     "scripts": {
         "vscode:prepublish": "npm run build:webview && npm run compile",
         "vscode:uninstall": "node ./out/uninstall",

@@ -163,10 +163,6 @@
                     <el-icon><RefreshRight /></el-icon>
                     {{ t('applyChanges') }}
                 </el-button>
-                <el-button class="block-btn" type="danger" plain @click="onSupport">
-                    <el-icon><Star /></el-icon>
-                    {{ t('supportAuthor') }}
-                </el-button>
             </div>
         </el-card>
     </div>
@@ -174,7 +170,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Refresh, ArrowRight, FullScreen, Brush, Star, Monitor, RefreshRight, Crop } from '@element-plus/icons-vue';
+import { Refresh, ArrowRight, FullScreen, Brush, Monitor, RefreshRight, Crop } from '@element-plus/icons-vue';
 import { useI18n, type MessageKey } from '../composables/useI18n';
 import { useBridge } from '../composables/useBridge';
 import { useDebouncedPost } from '../composables/useDebouncedPost';
@@ -250,7 +246,6 @@ const blendModeOptions = computed(() => BLEND_MODES.map((value) => ({
 })));
 
 function onSourceFolder() { bridge.post({ type: 'runAction', action: ActionType.AddDirectory }); }
-function onSupport()      { bridge.post({ type: 'runAction', action: ActionType.OpenFilePath, path: '//resources//support.jpg' }); }
 function onApplyChanges() { bridge.post({ type: 'applyDecorations' }); }
 </script>
 

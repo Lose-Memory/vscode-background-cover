@@ -1,13 +1,13 @@
 
 <h1 align="center">
-    <img src="https://user-images.githubusercontent.com/14969576/61449520-b55d9900-a987-11e9-9dc9-e81fa416688c.png" alt="logo" width="180"><br>
+    <img src="resources/background-cover.png" alt="logo" width="180"><br>
     VS Code - Background Cover
 </h1>
 
 <p align="center">
     <b>让你喜欢的图片或视频铺满 VS Code，只保留本地图像壁纸：热更新、视频背景、自动轮播、多窗口独立背景</b><br>
-    <a href="https://github.com/vscode-extension/vscode-background-cover">
-        <img src="https://img.shields.io/github/stars/vscode-extension/vscode-background-cover.svg?style=social" alt="stars">
+    <a href="https://github.com/Lose-Memory/vscode-background-cover">
+        <img src="https://img.shields.io/github/stars/Lose-Memory/vscode-background-cover.svg?style=social" alt="stars">
     </a>
 </p>
 
@@ -22,7 +22,7 @@
 2. **❌ 移除粒子动画**：鼠标跟随粒子特效、状态栏粒子按钮与相关设置全部删除。
 3. **❌ 移除顶部小宠物**：小动物与 Codex 宠物同步、冒泡文案全部删除，装饰页也已移除。
 4. **❌ 取消播放历史**：不再记录「最近使用」的图片，图库页不再有历史列表。
-5. **✅ 新增递归检索**：`backgroundCover.folderScanDepth` 设置（默认 3 层，0 = 只看当前目录），随机换图与目录选图都会递归扫描子目录，最多 10000 张。
+5. **✅ 新增递归检索**：`backgroundCover.folderScanDepth` 设置（默认 3 层，0 = 只看当前目录），随机换图与目录选图都会递归扫描子目录，最多 50000 张。
 6. **✅ 图库改用缩略图**：侧边栏图库预览由 sharp 生成 160px WebP 缩略图（按路径 + 修改时间缓存在扩展目录），不再加载原图。
 ---
 
@@ -31,7 +31,7 @@
 - **Studio 配置面板**：首页、本地图库、高级设置集中管理。
 - **界面主题**：支持默认主题和守望主题，可在面板右上角切换。
 - **图片/视频背景**：支持本地图片与本地视频；本地路径支持 `~`、`${ENV}`、`$ENV` 变量和文件夹（自动随机取一张）。
-- **递归检索子目录**：可设置扫描层数（`backgroundCover.folderScanDepth`，默认 3 层，0 = 只看当前目录），最多收集 10000 张。
+- **递归检索子目录**：可设置扫描层数（`backgroundCover.folderScanDepth`，默认 3 层，0 = 只看当前目录），最多收集 50000 张。
 - **热更新**：切换背景即刻生效，无需重启 VS Code。
 - **多窗口独立背景**：每个窗口可显示各自的背景图，也可切回全部窗口共用。
 - **AgentView 支持**：支持 VS Code AgentView / Agent Sessions 独立窗口背景显示。
@@ -55,14 +55,8 @@
    - 路径：`Microsoft VS Code\resources\app\out\vs\workbench\`
    - 将 `workbench.desktop.main.js.bak` 重命名为 `workbench.desktop.main.js`
 
-![](https://user-images.githubusercontent.com/14969576/47090529-b1b0b080-d255-11e8-8812-d541cb1c3852.png)
-
-
-
 
 ## 🖼️ 效果展示
-
-[在线图库/更多壁纸](https://vs.20988.xyz/d/24-vscodebei-jing-tu-tu-ku)
 
 ![](https://github.com/user-attachments/assets/7bd68f60-55af-42e8-980a-99bf1b3e078d)
 ![](https://github.com/user-attachments/assets/047617e6-7e09-441e-b9df-ae6a2bb940d9)
@@ -110,47 +104,18 @@ A: 插件会自动请求密码，或手动 `sudo chown` 相关文件。
 
 ## 📝 更新日志
 
-[完整日志](https://github.com/vscode-extension/vscode-background-cover/blob/master/CHANGELOG.md)
+[完整日志](./CHANGELOG.md)
 
 #### ver 3.8.0 本地精简版
 
 1. 只保留本地图像/视频壁纸：删除在线图库、在线图片下载与缓存、粒子动画、顶部小宠物、装饰页。
 2. 取消记录最近使用的图片。
-3. 新增 `backgroundCover.folderScanDepth`：随机换图与目录选图递归检索子目录（默认 3 层，最多 10000 张）。
+3. 新增 `backgroundCover.folderScanDepth`：随机换图与目录选图递归检索子目录（默认 3 层，最多 50000 张）。
 4. 图库预览改用 sharp 生成的缩略图，不再加载原图。
-
----
-
-### 致谢
-
-- [vscode-background](https://github.com/shalldie/vscode-background)
-- [feature_restart_random_image](https://github.com/AShujiao/vscode-background-cover/pull/2)
-- [Canvas-nest.js](https://github.com/hustcc/canvas-nest.js) 网页粒子背景插件
-
-## 贡献者
-默认展示所有贡献者，如需移除请提交 PR。
-
-[<img alt="AShujiao" src="https://avatars2.githubusercontent.com/u/14969576?s=460&v=4" width="90">](https://github.com/AShujiao)
-[<img alt="yjhmelody" src="https://avatars0.githubusercontent.com/u/16250688?s=460&v=4" width="90">](https://github.com/yjhmelody)
-[<img alt="shalldie" src="https://avatars3.githubusercontent.com/u/9987486?s=460&v=4" width="90">](https://github.com/shalldie)
-[<img alt="HOT3" src="https://avatars0.githubusercontent.com/u/43977240?s=400&v=4" width="90">](https://github.com/hot3)
-[<img alt="rogeraabbccdd" src="https://avatars0.githubusercontent.com/u/15815422?s=460&v=4" width="90">](https://github.com/rogeraabbccdd)
-[<img alt="kuresaru" src="https://avatars.githubusercontent.com/u/31172177?s=460&u=f44be019cc56fdf6d2ae9bbc7e12addb064c0b1b&v=4" width="90">](https://github.com/kuresaru)
-[<img alt="lauset" src="https://avatars.githubusercontent.com/u/47267800?v=4" width="90">](https://github.com/lauset)
-[<img alt="wuqirui" src="https://avatars.githubusercontent.com/u/53338059?v=4" width="90">](https://github.com/hhdqirui)
-[<img alt="WaaSakura" src="https://avatars.githubusercontent.com/u/54162467?v=4" width="90">](https://github.com/WaaSakura)
-[<img alt="Aierlanta" src="https://avatars.githubusercontent.com/u/90670661?v=4" width="90">](https://github.com/Aierlanta)
-[<img alt="MaxQian888" src="https://github.com/MaxQian888.png?size=90" width="90">](https://github.com/MaxQian888)
-
-### 相关信息
-
-- [GitHub](https://github.com/AShujiao/vscode-background-cover)
-- [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=manasxx.background-cover)
-
-**赞助作者**
-> 如果插件对你有帮助，欢迎请作者喝杯咖啡~
-
-[<img alt="lauset" src="https://zuhaowan-video.oss-cn-beijing.aliyuncs.com/1587571200/177327269-5cd91cdc-ffeb-4e1d-9193-abe5d2bb6b95.jpg" width="260">](https://github.com/lauset)
 
 ## 📄 许可证
 本项目采用 [MIT 许可证](LICENSE) 进行许可。
+
+---
+
+本项目基于 [AShujiao/vscode-background-cover](https://github.com/AShujiao/vscode-background-cover) 改写，感谢原作者与所有贡献者。

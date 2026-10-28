@@ -32,13 +32,11 @@ export default {
 
     notSet:            '未设置',
     apply:             '应用',
-    supportAuthor:     '赞助作者',
     actionCenter:      '操作中心',
     about:             '关于',
     repository:        '仓库地址',
     issues:            '问题反馈',
     starOnGithub:      '点个 Star',
-    wechatGroup:       '微信群聊',
 
     language:          '语言',
     langEnglish:       'English',
