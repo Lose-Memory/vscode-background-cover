@@ -35,6 +35,30 @@
                     {{ shortPath || t('notSet') }}
                 </span>
             </div>
+
+            <!-- 单张竖图的取景位置：优先于高级页的全局值 -->
+            <div v-if="showPositionRow" class="position-row">
+                <div class="position-head">
+                    <span class="position-label">{{ t('portraitPerImage') }}</span>
+                    <span v-if="config.imagePosition !== null" class="position-value">{{ effectivePct }}%</span>
+                    <span v-else class="position-follow">
+                        {{ t('portraitFollowGlobal') }} · {{ globalPct }}%
+                    </span>
+                </div>
+                <el-slider
+                    :model-value="effectivePct"
+                    :min="0" :max="100" :step="1"
+                    @input="onPositionInput"
+                />
+                <div class="position-foot">
+                    <span class="position-hint">{{ t('portraitPerImageHint') }}</span>
+                    <el-button
+                        v-if="config.imagePosition !== null"
+                        text size="small"
+                        @click="onFollowGlobal"
+                    >{{ t('portraitFollowGlobalBtn') }}</el-button>
+                </div>
+            </div>
         </el-card>
 
         <!-- Opacity & Blur -->
@@ -140,14 +164,48 @@ const isVideo = computed(() => isVideoPath(config.imagePath));
 /**
  * 竖图（宽/高 小于竖图阈值）按设定的纵向位置取景：
  * object-position 的百分比语义与 background-position 一致，预览与真实背景同步偏移。
+ * 单张图片单独设置的位置优先于全局值。
  */
-const previewObjectStyle = computed(() => {
+const globalPct = computed(() => {
+    const raw = Number(config.portraitVerticalPosition ?? 50);
+    return Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : 50;
+});
+
+const effectivePct = computed(() => {
+    const own = config.imagePosition;
+    return typeof own === 'number' ? Math.max(0, Math.min(100, Math.round(own))) : globalPct.value;
+});
+
+/** 只有「填充(cover) + 竖图」才需要纵向取景控制，横图或其它填充模式不显示。 */
+const showPositionRow = computed(() => {
     const aspect = Number(config.imageAspect || 0);
     const threshold = Number(config.aspectThreshold || 1.3);
-    const pct = Math.max(0, Math.min(100, Math.round(Number(config.portraitVerticalPosition ?? 50))));
-    if (!aspect || !threshold || aspect >= threshold || pct === 50) { return undefined; }
+    if (!aspect || !threshold || aspect >= threshold) { return false; }
+    return (config.sizeModel || 'cover') === 'cover';
+});
+
+const previewObjectStyle = computed(() => {
+    if (!showPositionRow.value) { return undefined; }
+    const pct = effectivePct.value;
+    if (pct === 50) { return undefined; }
     return { objectPosition: `center ${pct}%` };
 });
+
+let positionTimer: ReturnType<typeof setTimeout> | undefined;
+function onPositionInput(v: number) {
+    const pct = Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+    config.imagePosition = pct;
+    if (positionTimer) { clearTimeout(positionTimer); }
+    positionTimer = setTimeout(() => {
+        bridge.post({ type: 'setImagePosition', path: config.imagePath, value: pct });
+    }, 220);
+}
+
+function onFollowGlobal() {
+    if (positionTimer) { clearTimeout(positionTimer); }
+    config.imagePosition = null;
+    bridge.post({ type: 'setImagePosition', path: config.imagePath, value: null });
+}
 
 const shortPath = computed(() => {
     const p = config.imagePath || '';
@@ -246,6 +304,41 @@ function onStar()   { bridge.post({ type: 'openExternal', url: GITHUB_REPO_URL }
     font-size: 11px;
 }
 .meta-label { color: var(--vscode-descriptionForeground); flex-shrink: 0; }
+
+.position-row {
+    margin-top: 8px;
+    padding: 8px 4px 2px;
+    border-top: var(--studio-divider);
+}
+.position-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px;
+    margin-bottom: 2px;
+}
+.position-label { color: var(--vscode-descriptionForeground); }
+.position-value {
+    color: var(--studio-accent);
+    font-family: 'Consolas', 'SFMono-Regular', Menlo, monospace;
+    font-weight: 600;
+}
+.position-follow { color: var(--vscode-descriptionForeground); opacity: 0.85; }
+.position-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 2px;
+}
+.position-hint {
+    font-size: 10px;
+    line-height: 1.35;
+    color: var(--vscode-descriptionForeground);
+    opacity: 0.85;
+}
+
 .meta-path  {
     flex: 1 1 auto;
     text-align: right;

@@ -21,7 +21,7 @@ import { ImgItem } from './ImgItem';
 import vsHelp from './vsHelp';
 import { getContext } from './global';
 import { hasCurrentImageRecord, resolveCurrentBlur, resolveCurrentImagePath, resolveCurrentOpacity, setCurrentBlur, setCurrentImagePath, setCurrentOpacity } from './windowBackground';
-import { expandPathVariables, FOLDER_SCAN_DEFAULT_DEPTH, FOLDER_SCAN_MAX_DEPTH, listImagesInFolder, MEDIA_EXTS, pickRandomFromFolder } from './pathUtil';
+import { expandPathVariables, FOLDER_SCAN_DEFAULT_DEPTH, FOLDER_SCAN_MAX_DEPTH, listImagesInFolder, pickRandomFromFolder } from './pathUtil';
 import { filterByMinAspect, getImageAspect } from './imageStats';
 
 
@@ -639,11 +639,7 @@ export class PickList {
             if (!proceed) { return false; }
         }
 
-        const shouldDisableAuto = persist && this.isSingleImagePath(path);
         await this.setConfigValue('imagePath', path, true, persist);
-        if (shouldDisableAuto) {
-            await this.disableAutoRandomForSingleImage();
-        }
     }
 
     /**
@@ -733,27 +729,9 @@ export class PickList {
         return true;
     }
 
-    private async disableAutoRandomForSingleImage(): Promise<void> {
-        const autoStatus = this.config.get<boolean>('autoStatus');
-        if (!autoStatus) {
-            return;
-        }
-        await this.config.update('autoStatus', false, ConfigurationTarget.Global);
-        this.config = workspace.getConfiguration('backgroundCover');
-        window.showInformationMessage('检测到单张图片，已自动关闭自动更新功能。 / Detected single image source, auto update disabled.');
-    }
-
-    private isSingleImagePath(value: string): boolean {
-        if (!value) {
-            return false;
-        }
-        const sanitized = value.split('?')[0].split('#')[0];
-        const ext = path.extname(sanitized).toLowerCase();
-        if (!ext) {
-            return false;
-        }
-        return MEDIA_EXTS.includes(ext);
-    }
+    // 曾经在写入单张图片路径时自动关掉「自动随机」开关。但随机换图本身就会把选中的
+    // 图片持久化成单个路径，于是每次随机（含启动换图）都被误判成「用户选了单张图」，
+    // 把用户刚打开的开关又关掉。是否自动随机只由用户自己决定，这里不再干预。
 
     public setRandUpdate(value: boolean) {
         this.randUpdate = value;

@@ -93,6 +93,10 @@ export default {
     aspectThresholdHint:  '宽高比小于该值的图片视为竖图：开启筛选后随机换图会跳过它们，并按下面的位置取景。',
     portraitPosition:     '竖图纵向位置',
     portraitPositionHint: '0 = 顶部，50 = 居中，100 = 底部。横屏显示器上竖图人物常在上半部分，把位置调小（如 30）即可让脸部进入画面。',
+    portraitPerImage:     '单张取景位置',
+    portraitPerImageHint: '只影响当前这张竖图，优先于全局值。',
+    portraitFollowGlobal: '跟随全局',
+    portraitFollowGlobalBtn: '恢复跟随全局',
 
     themeOverwatchShort:    '守望',
     logoAlt:                '扩展图标',

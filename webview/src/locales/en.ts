@@ -93,6 +93,10 @@ export default {
     aspectThresholdHint:  'Images below this ratio count as portrait: random rotation skips them while the filter is on, and they are framed with the position below.',
     portraitPosition:     'Portrait vertical position',
     portraitPositionHint: '0 = top, 50 = center, 100 = bottom. On a landscape monitor a portrait shot is usually framed around the upper half — lower this (e.g. 30) to bring the face into view.',
+    portraitPerImage:     'Position for this image',
+    portraitPerImageHint: 'Affects only this portrait image and overrides the global value.',
+    portraitFollowGlobal: 'Following global',
+    portraitFollowGlobalBtn: 'Use global',
 
     themeOverwatchShort:    'OW',
     logoAlt:                'Extension logo',

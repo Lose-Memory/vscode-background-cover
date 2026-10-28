@@ -20,6 +20,7 @@ import {
     resolveThemeBlendRules
 } from './backgroundCss';
 import { IMAGE_FADE_JS, PRELOAD_IMAGE_JS } from './loaderFragments';
+import { getImagePosition } from './imagePositions';
 import {
     clearPatchBlock,
     hasPatchBlock,
@@ -2053,11 +2054,13 @@ export class FileDom {
         }
 
         // 竖图纵向取景：cover 会裁掉竖图上下两端，横屏下居中对齐经常把脸裁掉。
-        // 长宽比小于阈值的图按 portraitVerticalPosition（0=顶部，50=居中，100=底部）偏移。
+        // 长宽比小于阈值的图按纵向位置（0=顶部，50=居中，100=底部）偏移；
+        // 单张图片单独设置的位置优先于全局设置。
         if (this.sizeModel === "cover" && this.imageAspect > 0) {
             const rawThreshold = Number(this.workConfig.get('aspectThreshold', 1.3));
             const threshold = Number.isFinite(rawThreshold) && rawThreshold > 0 ? rawThreshold : 1.3;
-            const rawPercent = Number(this.workConfig.get('portraitVerticalPosition', 50));
+            const override = getImagePosition(this.imagePath);
+            const rawPercent = override !== undefined ? override : Number(this.workConfig.get('portraitVerticalPosition', 50));
             const percent = Number.isFinite(rawPercent) ? Math.min(100, Math.max(0, rawPercent)) : 50;
             if (this.imageAspect < threshold && percent !== 50) {
                 positionVal = `center ${percent}%`;

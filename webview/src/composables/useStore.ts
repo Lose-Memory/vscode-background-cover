@@ -28,6 +28,8 @@ export interface StudioConfig {
     folderScanDepth: number;
     /** 当前背景图的长宽比；0 = 未知 */
     imageAspect: number;
+    /** 当前这张图片单独设置的纵向位置；null = 跟随全局 portraitVerticalPosition */
+    imagePosition: number | null;
 }
 
 export interface FolderImage {
@@ -85,6 +87,7 @@ export const config = reactive<StudioConfig>({
     portraitVerticalPosition: 50,
     folderScanDepth: 3,
     imageAspect: 0,
+    imagePosition: null,
 });
 
 export const state = reactive<StudioState>({

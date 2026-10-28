@@ -20,6 +20,7 @@ import { resolveCurrentBlur, resolveCurrentImagePath, resolveCurrentOpacity } fr
 import { expandPathVariables, FOLDER_SCAN_MAX_FILES } from './pathUtil';
 import { getThumbnail } from './thumbnails';
 import { getCachedImageSize, getLatestScan, scanFolderSizes } from './imageStats';
+import { getImagePosition, setImagePosition } from './imagePositions';
 
 const PUSH_DEBOUNCE_MS = 120;
 
@@ -196,7 +197,9 @@ export class StudioViewProvider implements WebviewViewProvider {
                     imageAspect: (() => {
                         const size = getCachedImageSize(imagePath);
                         return size ? size.width / size.height : 0;
-                    })()
+                    })(),
+                    // 单张图片单独设置的纵向位置（null = 跟随全局）
+                    imagePosition: getImagePosition(imagePath) ?? null
                 },
                 state: {
                     folderImages,
@@ -237,6 +240,17 @@ export class StudioViewProvider implements WebviewViewProvider {
                     await commands.executeCommand('backgroundCover.setConfig', `backgroundCover.${msg.key}`, msg.value);
                 }
                 return;
+
+            case 'setImagePosition': {
+                // 单图纵向位置：只对当前背景图生效，优先于全局「竖图位置」。
+                const target = typeof msg.path === 'string' && msg.path ? msg.path : resolveCurrentImagePath('');
+                if (!target) { return; }
+                const value = typeof msg.value === 'number' && Number.isFinite(msg.value) ? msg.value : null;
+                setImagePosition(target, value);
+                await PickList.applyCurrentBackground();
+                this.pushState();
+                return;
+            }
 
             case 'setGlobalState':
                 if (typeof msg.key === 'string' && WEBVIEW_WRITABLE_STATE_KEYS.has(msg.key)) {
