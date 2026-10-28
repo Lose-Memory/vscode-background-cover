@@ -15,7 +15,7 @@ import {
     OutputChannel
 } from 'vscode';
 
-import { FileDom } from './FileDom';
+import { FileDom, hasStaleBackgroundCss } from './FileDom';
 import { BackgroundPatchError, BackgroundApplyCancelledError, pickUnusedCandidate } from './downloadError';
 import { ImgItem } from './ImgItem';
 import vsHelp from './vsHelp';
@@ -115,6 +115,21 @@ export class PickList {
         return PickList.itemList = undefined;
     }
 
+    /**
+     * 启动窗口时随机换一张：只受「启动时随机换图」开关控制，不再依赖定时自动换图的 autoStatus。
+     * 竖图比例筛选在 autoUpdateBackground 内部生效。
+     */
+    public static startupRandomUpdate() {
+        const config = workspace.getConfiguration('backgroundCover');
+        if (!config.randomImageFolder || !config.get<boolean>('autoRandomOnStartup', true)) {
+            return false;
+        }
+        PickList.itemList = new PickList(config);
+        PickList.itemList.autoUpdateBackground();
+        PickList.itemList = undefined;
+        return true;
+    }
+
     public static randomUpdateBackground() {
         const config = workspace.getConfiguration('backgroundCover');
         if (!config.randomImageFolder) {
@@ -130,8 +145,18 @@ export class PickList {
     public static async applyCurrentBackground(): Promise<boolean> {
         const config = workspace.getConfiguration('backgroundCover');
         const resolved = resolveCurrentImagePath(config.get<string>('imagePath') || '');
+        // 完全没有背景记录时也要走一次：把历史遗留的 CSS 清掉（包括首帧用的共享
+        // 文件），否则窗口启动时会先渲染一张早就被删除的旧图。
         if (!resolved && !hasCurrentImageRecord()) {
-            return false;
+            if (!(await hasStaleBackgroundCss())) {
+                return false;
+            }
+            PickList.itemList = new PickList(config);
+            try {
+                return await PickList.itemList.updateDom(true);
+            } finally {
+                PickList.itemList = undefined;
+            }
         }
         if (resolved) {
             await setCurrentImagePath(resolved);

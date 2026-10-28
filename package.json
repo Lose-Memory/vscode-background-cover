@@ -2,7 +2,7 @@
     "name": "background-cover",
     "displayName": "background-cover",
     "description": "Add a picture you like to cover the entire vscode background (Hot Reload Supported). / 添加你喜欢的图片覆盖整个vscode背景（支持热更新）",
-    "version": "3.9.0",
+    "version": "3.9.2",
     "publisher": "manasxx",
     "engines": {
         "vscode": "^1.38.0"
@@ -131,6 +131,11 @@
                     "type": "number",
                     "default": 10,
                     "description": "Automatically change background interval in seconds / 自动更换背景的时间间隔（秒）"
+                },
+                "backgroundCover.autoRandomOnStartup": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Pick a new random image when the window starts (independent of the timed auto refresh) / 启动窗口时随机换一张新图（与定时自动换图互不影响）"
                 },
                 "backgroundCover.sizeModel": {
                     "type": "string",

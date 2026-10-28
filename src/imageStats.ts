@@ -5,11 +5,14 @@
  *   视频与读不到尺寸的条目返回 undefined，一律视为「未知」。
  * - filterByMinAspect：随机换图时抽样筛掉长宽比不达标的图片（视频直接放行），
  *   不需要事先扫描，也就不会因为目录变化而拿到过期结果。
- * - scanFolderSizes：图库「扫描目录」按钮用的一次性全量统计（只存在当前会话）。
+ * - scanFolderSizes：图库「扫描目录」按钮用的全量统计（落盘到 globalStorage，
+ *   重启窗口后统计卡片与缩略图角标不需要重新扫描）。
  *
  * sharp 是可选依赖，加载失败时整个模块降级为「未知」，不影响壁纸本身。
  */
 import * as fs from 'fs';
+import * as path from 'path';
+import { getContext } from './global';
 import { isVideoFile } from './pathUtil';
 
 export interface ImageSize {
@@ -38,6 +41,86 @@ function loadSharp(): SharpFactory | null {
 
 const sizeCache = new Map<string, { mtimeMs: number; size?: ImageSize }>();
 const SIZE_CACHE_MAX = 60_000;
+
+// --- 扫描结果落盘 ---------------------------------------------------------
+// 只存「目录一次扫描的结论 + 相对路径的宽高」，重启后直接复用：统计卡片、缩略图
+// 角标、随机换图筛选都还能用，不需要用户再扫一遍。
+const STATS_FILE_NAME = 'image-stats.json';
+const MAX_STATS_FOLDERS = 3;
+const MAX_STATS_ENTRIES = 30_000;
+
+interface PersistedFolderStats {
+    depth: number;
+    scannedAt: number;
+    summary: FolderScanResult;
+    /** 相对目录的小写路径 → [宽, 高] */
+    sizes: Record<string, [number, number]>;
+}
+
+let persistedStats: Record<string, PersistedFolderStats> | undefined;
+
+function normalizePathKey(value: string): string {
+    return value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function statsFilePath(): string | undefined {
+    try {
+        return path.join(getContext().globalStorageUri.fsPath, STATS_FILE_NAME);
+    } catch {
+        return undefined;
+    }
+}
+
+function loadPersistedStats(): Record<string, PersistedFolderStats> {
+    if (persistedStats) { return persistedStats; }
+    persistedStats = {};
+    const file = statsFilePath();
+    if (!file) { return persistedStats; }
+    try {
+        if (fs.existsSync(file)) {
+            const raw = JSON.parse(fs.readFileSync(file, 'utf-8')) as Record<string, PersistedFolderStats>;
+            if (raw && typeof raw === 'object') { persistedStats = raw; }
+        }
+    } catch (e) {
+        console.warn('[BackgroundCover] Failed to read image stats file:', e);
+    }
+    return persistedStats;
+}
+
+function savePersistedStats(): void {
+    const file = statsFilePath();
+    if (!file) { return; }
+    try {
+        fs.writeFileSync(file, JSON.stringify(persistedStats ?? {}), 'utf-8');
+    } catch (e) {
+        console.warn('[BackgroundCover] Failed to write image stats file:', e);
+    }
+}
+
+/** 把绝对路径转成「相对扫描目录」的小写键；不在目录内返回 undefined。 */
+function relativePathKey(folder: string, filePath: string): string | undefined {
+    const base = normalizePathKey(folder);
+    const target = normalizePathKey(filePath);
+    if (!target.startsWith(`${base}/`)) { return undefined; }
+    return target.slice(base.length + 1);
+}
+
+function lookupPersistedSize(filePath: string): ImageSize | undefined {
+    const target = normalizePathKey(filePath);
+    const store = loadPersistedStats();
+    for (const folder of Object.keys(store)) {
+        const prefix = `${folder}/`;
+        if (!target.startsWith(prefix)) { continue; }
+        const hit = store[folder].sizes[target.slice(prefix.length)];
+        if (!hit) { return undefined; }
+        const size: ImageSize = { width: hit[0], height: hit[1] };
+        if (sizeCache.size >= SIZE_CACHE_MAX) { sizeCache.clear(); }
+        // mtimeMs=0 只用来直接返回尺寸；getImageSize 会因为它不匹配而重新读盘校正。
+        sizeCache.set(filePath, { mtimeMs: 0, size });
+        return size;
+    }
+    return undefined;
+}
 
 /** 读取图片的显示尺寸（已按 EXIF 方向校正）；视频 / 不存在 / 读不到返回 undefined。 */
 export async function getImageSize(filePath: string): Promise<ImageSize | undefined> {
@@ -78,7 +161,9 @@ export async function getImageSize(filePath: string): Promise<ImageSize | undefi
 
 /** 同步读缓存（没统计过就返回 undefined），供 webview 状态推送使用。 */
 export function getCachedImageSize(filePath: string): ImageSize | undefined {
-    return sizeCache.get(filePath)?.size;
+    const cached = sizeCache.get(filePath);
+    if (cached) { return cached.size; }
+    return lookupPersistedSize(filePath);
 }
 
 /** 长宽比 = 宽 / 高；读不到尺寸返回 undefined。 */
@@ -165,10 +250,11 @@ const SCAN_CONCURRENCY = 8;
 
 let latestScan: FolderScanResult | undefined;
 
-/** 当前会话最近一次扫描结果；folder 不匹配时视为没有结果。 */
+/** 当前会话最近一次扫描结果（会话内没有则回落到落盘数据）；folder 不匹配时视为没有结果。 */
 export function getLatestScan(folder?: string): FolderScanResult | undefined {
-    if (latestScan && folder && latestScan.folder !== folder) { return undefined; }
-    return latestScan;
+    if (latestScan && (!folder || latestScan.folder === folder)) { return latestScan; }
+    if (!folder) { return latestScan; }
+    return loadPersistedStats()[normalizePathKey(folder)]?.summary;
 }
 
 /**
@@ -184,6 +270,8 @@ export async function scanFolderSizes(
 ): Promise<FolderScanResult> {
     const total = files.length;
     const ratios: number[] = [];
+    const sizes: Record<string, [number, number]> = {};
+    let storedSizes = 0;
     let measured = 0;
     let unknown = 0;
     let done = 0;
@@ -198,6 +286,13 @@ export async function scanFolderSizes(
             if (size) {
                 measured += 1;
                 ratios.push(size.width / size.height);
+                if (storedSizes < MAX_STATS_ENTRIES) {
+                    const key = relativePathKey(folder, files[index]);
+                    if (key) {
+                        sizes[key] = [size.width, size.height];
+                        storedSizes += 1;
+                    }
+                }
             } else {
                 unknown += 1;
             }
@@ -239,5 +334,20 @@ export async function scanFolderSizes(
         buckets
     };
     latestScan = result;
+    persistScan(folder, result, sizes);
     return result;
+}
+
+/** 扫描结果落盘，并只保留最近使用的几个目录。 */
+function persistScan(folder: string, summary: FolderScanResult, sizes: Record<string, [number, number]>): void {
+    const store = loadPersistedStats();
+    store[normalizePathKey(folder)] = { depth: summary.depth, scannedAt: summary.scannedAt, summary, sizes };
+    const keys = Object.keys(store);
+    if (keys.length > MAX_STATS_FOLDERS) {
+        keys.sort((a, b) => (store[a].scannedAt || 0) - (store[b].scannedAt || 0));
+        for (const key of keys.slice(0, keys.length - MAX_STATS_FOLDERS)) {
+            delete store[key];
+        }
+    }
+    savePersistedStats();
 }

@@ -67,6 +67,8 @@ export default {
     presetColors:         '预设颜色',
     customColor:          '自定义颜色',
     intervalSeconds:      '间隔（秒）',
+    autoRandomOnStartup:      '启动时随机换图',
+    autoRandomOnStartupHint:  '每次启动窗口都从来源目录重新挑一张（与上面的定时自动换图互不影响，同样遵守竖图比例筛选）',
     applyChanges:         '重启窗口生效',
     applyChangesHint:     '本部分功能修改后需重启窗口才能生效，修改完成后请点击下方按钮',
 

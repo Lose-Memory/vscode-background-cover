@@ -11,6 +11,8 @@ export interface StudioConfig {
     imagePathDisplay: string;     // webview URI for <img src>
     autoStatus: boolean;
     autoInterval: number;
+    /** 启动窗口时随机换一张新图（与定时自动换图互不影响） */
+    autoRandomOnStartup: boolean;
     sizeModel: string;
     blendModel: string;
     randomImageFolder: string;
@@ -73,6 +75,7 @@ export const config = reactive<StudioConfig>({
     imagePathDisplay: '',
     autoStatus: false,
     autoInterval: 10,
+    autoRandomOnStartup: true,
     sizeModel: 'cover',
     blendModel: 'auto',
     randomImageFolder: '',

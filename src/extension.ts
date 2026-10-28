@@ -19,7 +19,6 @@ import {
 } from 'vscode';
 import * as fs from 'fs';
 import { PickList } from './PickList';
-import vsHelp from './vsHelp';
 import { setContext } from './global';
 import { CUSTOM_JS_FILE_PATH, collectStaleWindowCssFiles, detectPatchState } from './FileDom';
 import { pruneOldThumbnails } from './thumbnails';
@@ -66,10 +65,10 @@ export function activate(context: ExtensionContext) {
 					}
 				});
 			} else {
-				if (hasImage) {
-					await PickList.applyCurrentBackground();
-				}
-				PickList.autoUpdateBackground();
+				// 没有记录时也要走一次：清掉指向已删除图片的残留 CSS（包括首帧用的
+				// 共享文件），避免重启后先黑屏、点刷新也不生效。
+				await PickList.applyCurrentBackground();
+				PickList.startupRandomUpdate();
 			}
 		}
 	}).catch(err => {
@@ -179,23 +178,7 @@ export function activate(context: ExtensionContext) {
 	// A4: 主题感知混合模式已改为注入 CSS 的变量 + :has() 即时适配（见 backgroundCss.ts），
 	// 不再需要监听主题变化并弹窗确认 / 重打补丁 / 重载窗口。
 
-
-
-	 // 首次打开-提示语
-	let openVersion:string|undefined           = context.globalState.get('ext_version');
-	let ex:Extension<any>|undefined = extensions.getExtension('manasxx.background-cover');
-	let version:string           = ex ? ex.packageJSON['version'] : '';
-	
-	if(openVersion != version){
-	context.globalState.update('ext_version',version);
-	vsHelp.showInfoSupport(`🎉 BackgroundCover ${version}
-🚀 更新内容：
-    1. 移除在线图库与在线图片下载，仅保留本地图片/视频壁纸。
-    2. 新增「递归检索子目录」设置项。
-    3. 图库预览改用缩略图，打开面板不再加载原图。
-
-❤️ 觉得好用吗？欢迎反馈与建议！`);
-	}
+	// 安装/升级后不再弹「更新内容」提示：用户明确不希望重装后被弹窗打断。
 }
 
 // 检查 VSCode 版本是否变化

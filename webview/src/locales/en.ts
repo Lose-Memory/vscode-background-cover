@@ -67,6 +67,8 @@ export default {
     presetColors:         'Preset Colors',
     customColor:          'Custom Color',
     intervalSeconds:      'Interval (seconds)',
+    autoRandomOnStartup:      'Random image on startup',
+    autoRandomOnStartupHint:  'Pick a fresh image from the source folder every time the window starts (independent of the timed refresh, still follows the portrait aspect filter)',
     applyChanges:         'Reload to apply changes',
     applyChangesHint:     'Changes in this section require a window reload. Click the button below after editing.',
 

@@ -38,6 +38,15 @@
                     <el-icon><ArrowRight /></el-icon>
                 </el-button>
             </div>
+
+            <div class="row">
+                <span class="row-label">{{ t('autoRandomOnStartup') }}</span>
+                <el-switch
+                    :model-value="config.autoRandomOnStartup !== false"
+                    @change="(v: any) => bridge.post({ type: 'setConfig', key: 'autoRandomOnStartup', value: v })"
+                />
+            </div>
+            <div class="row-hint">{{ t('autoRandomOnStartupHint') }}</div>
         </el-card>
 
         <!-- Window scope -->

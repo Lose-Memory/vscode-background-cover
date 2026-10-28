@@ -182,6 +182,7 @@ export class StudioViewProvider implements WebviewViewProvider {
                     imagePathDisplay,
                     autoStatus: cfg.get('autoStatus') ?? false,
                     autoInterval: cfg.get('autoInterval') ?? 10,
+                    autoRandomOnStartup: cfg.get('autoRandomOnStartup') ?? true,
                     sizeModel: cfg.get('sizeModel') ?? 'cover',
                     blendModel: cfg.get('blendModel') ?? 'auto',
                     randomImageFolder: cfg.get('randomImageFolder') ?? '',

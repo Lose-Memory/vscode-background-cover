@@ -276,6 +276,19 @@ function isElevationCancelled(error: unknown): boolean {
     return /did not grant permission|canceled|cancelled/i.test(String(error));
 }
 
+/** 工作台里是否还留着非空的背景 CSS：启动时据此清理指向已删除图片的残留。 */
+export async function hasStaleBackgroundCss(): Promise<boolean> {
+    try {
+        if (!(await fse.pathExists(CUSTOM_CSS_FILE_PATH))) {
+            return false;
+        }
+        const content = await fse.readFile(CUSTOM_CSS_FILE_PATH, 'utf-8');
+        return content.trim().length > 0;
+    } catch {
+        return false;
+    }
+}
+
 export async function removeBackgroundCoverCssFiles(): Promise<void> {
     if (!(await fse.pathExists(WORKBENCH_DIR))) {
         return;
@@ -936,6 +949,8 @@ export class FileDom {
     public async clearBackground(): Promise<boolean> {
         try {
             await this.writeWithPermission(this.windowCssFilePath, '');
+            // 首帧用的共享文件也要清掉，否则重启时会先显示被清除的旧背景。
+            await this.syncSharedCssFallback('');
             this.requiresReload = false;
             return true;
         } catch (error) {
@@ -1068,16 +1083,28 @@ export class FileDom {
         if (changed) {
             await this.writeWithPermission(this.windowCssFilePath, css);
         }
-        // Shared file is only a pre-handshake fallback. Seed it when missing so a
-        // brand-new window has something to show before this session's trigger.
-        try {
-            if (!(await fse.pathExists(CUSTOM_CSS_FILE_PATH))) {
-                await this.writeWithPermission(CUSTOM_CSS_FILE_PATH, css);
-            }
-        } catch (error) {
-            console.warn('[FileDom] Failed to seed shared CSS fallback:', error);
-        }
+        // 共享 CSS 是渲染层启动时的首帧来源。它以前只在「文件不存在」时播种，图片被
+        // 删除/移动后就长期指向一张不存在的图，导致重启窗口先黑屏，必须等状态栏
+        // trigger 才换成本窗口的 CSS。这里让它始终跟随最近一次应用的内容。
+        await this.syncSharedCssFallback(css);
         return changed;
+    }
+
+    private async syncSharedCssFallback(css: string): Promise<void> {
+        if (path.normalize(this.windowCssFilePath).toLowerCase() === path.normalize(CUSTOM_CSS_FILE_PATH).toLowerCase()) {
+            return; // 共用模式：windowCssFilePath 本身就是共享文件
+        }
+        try {
+            if (await fse.pathExists(CUSTOM_CSS_FILE_PATH)) {
+                const current = await fse.readFile(CUSTOM_CSS_FILE_PATH, 'utf-8');
+                if (current === css) {
+                    return;
+                }
+            }
+            await this.writeWithPermission(CUSTOM_CSS_FILE_PATH, css);
+        } catch (error) {
+            console.warn('[FileDom] Failed to sync shared CSS fallback:', error);
+        }
     }
 
     private async saveDynamicJsContent(): Promise<boolean> {
