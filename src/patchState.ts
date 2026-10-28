@@ -22,7 +22,7 @@ export const PATCH_MARKER_START = '/*ext-backgroundCover-start*/';
  * 当前 bootstrap 版本的标记。改 bootstrap 结构时递增该版本，旧补丁会自动判定为
  * legacy 并在下次启动时提示重新应用。
  */
-export const BOOTSTRAP_VERSION = '1';
+export const BOOTSTRAP_VERSION = '2';
 
 export function bootstrapMarkerOf(bootstrapVersion: string): string {
     return `/*ext.backgroundCover.bootstrap.${bootstrapVersion}*/`;

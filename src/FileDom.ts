@@ -1992,6 +1992,17 @@ export class FileDom {
                 }
             }, { passive: true });
 
+            // 3. Webview Hook: 面板自己通知父窗口重新读取 CSS。
+            // 状态栏文字触发依赖「状态栏可见 + 观察者已挂上」，而面板里的操作
+            // （拖滑块、点缩略图）焦点一直在 webview iframe 内，pointerdown/focus
+            // 兜底也不会触发，于是出现「预览变了、真实背景不动」。
+            registerListener(window, 'message', (ev) => {
+                const data = ev && ev.data;
+                if (!data || data.__backgroundCoverReload !== true) { return; }
+                scheduleLoadCss('webview', 0);
+                scheduleLoadCss('webview-followup', 350);
+            });
+
             let startupPolls = 0;
             const startupPoll = registerInterval(setInterval(() => {
                 startupPolls++;
