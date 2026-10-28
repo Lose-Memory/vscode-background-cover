@@ -407,6 +407,9 @@ export class FileDom {
     private isVideo: boolean = false;
     /** 当前图片的长宽比（宽/高），0 表示未知；竖图纵向取景用它判断是否偏移。 */
     private imageAspect: number = 0;
+    // 原始本地路径：initializeImage 会把 imagePath 改写成 vscode-file:// URL，
+    // 而 image-positions.json 是按本地路径存的，必须保留原始路径才能查到单图取景值。
+    private sourceImagePath: string = '';
     public didUpdateCss: boolean = false;
     public didUpdateDynamicJs: boolean = false;
 
@@ -425,6 +428,7 @@ export class FileDom {
         this.imageAspect = imageAspect;
         this.filePath = JS_FILE_PATH;
         this.imagePath = imagePath;
+        this.sourceImagePath = imagePath;
         this.imageOpacity = Math.min(opacity, 0.8);
         this.sizeModel = sizeModel || "cover";
         this.blur = blur;
@@ -482,6 +486,8 @@ export class FileDom {
         if (folderPicked) {
             this.imagePath = folderPicked;
         }
+        // 记住还没被改写成 vscode-file:// 的本地路径（单图取景位置按它索引）
+        this.sourceImagePath = this.imagePath;
 
         let lowerPath = this.imagePath.toLowerCase();
 
@@ -592,7 +598,6 @@ export class FileDom {
             if (!(await fse.pathExists(lockPath))) {
                 await fse.writeFile(lockPath, '', 'utf-8');
             }
-
             release = await lockfile.lock(lockPath, {
                 retries: {
                     retries: 10,
@@ -602,7 +607,6 @@ export class FileDom {
                 },
                 stale: 20000
             });
-
             if (!this.shouldApply()) {
                 throw new BackgroundApplyCancelledError();
             }
@@ -2070,7 +2074,7 @@ export class FileDom {
         if (this.sizeModel === "cover" && this.imageAspect > 0) {
             const rawThreshold = Number(this.workConfig.get('aspectThreshold', 1.3));
             const threshold = Number.isFinite(rawThreshold) && rawThreshold > 0 ? rawThreshold : 1.3;
-            const override = getImagePosition(this.imagePath);
+            const override = getImagePosition(this.sourceImagePath || this.imagePath);
             const rawPercent = override !== undefined ? override : Number(this.workConfig.get('portraitVerticalPosition', 50));
             const percent = Number.isFinite(rawPercent) ? Math.min(100, Math.max(0, rawPercent)) : 50;
             if (this.imageAspect < threshold && percent !== 50) {

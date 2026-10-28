@@ -6,6 +6,11 @@
 -->
 ## 更新日志
 
+#### ver 3.9.7 单图取景位置真正落到窗口
+
+    1. 修复「单张竖图的取景位置只改预览、真实窗口始终用全局值」：生成 CSS 前 `initializeImage()` 会把图片路径改写成 `vscode-file://vscode-app/...`，而单图取景值是按本地路径存储在 `image-positions.json` 里的，于是查表永远查不到、静默回落成全局百分比。现在单独保留一份未被改写的本地路径（`sourceImagePath`）用于查表，单图设置会正常写入 CSS。
+    2. 移除上一轮为定位该问题临时加入的调试日志模块。
+
 #### ver 3.9.4 面板改动即时生效
 
     1. 修复「在面板里调竖图取景位置时，左侧预览变了、右侧真实窗口不变」：注入层原先只靠状态栏文字变化感知新 CSS，而面板里的操作焦点一直停在 webview iframe 内，focus / pointerdown 兜底事件不会冒泡到工作台页面，所以滑块松手后窗口并不刷新。现在面板每发出一条会改变壁纸的消息（setConfig / setImagePosition / applyDecorations），都会直接向父窗口 postMessage 通知注入层重新读取 CSS，不再依赖状态栏是否可见。
