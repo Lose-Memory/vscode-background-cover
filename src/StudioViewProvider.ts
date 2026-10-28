@@ -58,8 +58,6 @@ export class StudioViewProvider implements WebviewViewProvider {
     /** Set of allowed local-resource root directories (fs paths). */
     private allowedRoots = new Set<string>();
     private pushTimer?: ReturnType<typeof setTimeout>;
-    /** Folder listing cache keyed by folder path + mtime; avoids readdir on every push. */
-    private folderCache?: { folder: string; mtimeMs: number; depth: number; names: string[] };
     /** 目录扫描进行中：避免连点按钮并发扫两遍。 */
     private scanning = false;
 
@@ -107,19 +105,6 @@ export class StudioViewProvider implements WebviewViewProvider {
         }, PUSH_DEBOUNCE_MS);
     }
 
-    /** List folder media, reusing the previous listing while the directory mtime and scan depth are unchanged. */
-    private listFolder(folder: string): string[] {
-        const mtimeMs = fs.statSync(folder).mtimeMs;
-        const depth = PickList.getScanDepth();
-        const c = this.folderCache;
-        if (c && c.folder === folder && c.mtimeMs === mtimeMs && c.depth === depth) {
-            return c.names;
-        }
-        const names = PickList.listFolderImages(folder);
-        this.folderCache = { folder, mtimeMs, depth, names };
-        return names;
-    }
-
     /** Re-send full state; used by external commands (refresh/home/support). */
     public pushState(): void {
         if (!this.view) { return; }
@@ -136,7 +121,7 @@ export class StudioViewProvider implements WebviewViewProvider {
         let folderImagesTruncated = false;
         try {
             if (folder && fs.existsSync(folder) && fs.statSync(folder).isDirectory()) {
-                const names = this.listFolder(folder);
+                const names = PickList.listFolderImages(folder);
                 folderImagesTotal = names.length;
                 // 扫描有数量上限：达到上限时结果只代表「至少这么多」，不能当成真实总数
                 folderImagesTruncated = folderImagesTotal >= FOLDER_SCAN_MAX_FILES;
@@ -296,7 +281,7 @@ export class StudioViewProvider implements WebviewViewProvider {
     }
 
     /**
-     * 统计来源目录内所有图片的尺寸与长宽比（一次性的全量扫描，结果只保留在当前会话）。
+     * 统计来源目录内所有图片的尺寸与长宽比（增量：测过且 mtime 未变的图直接复用落盘结果）。
      * 扫描期间按 ~120ms 推送一次进度；结束时无论成功失败都推一次 scanResult。
      */
     private async scanFolder(): Promise<void> {
@@ -310,7 +295,7 @@ export class StudioViewProvider implements WebviewViewProvider {
             if (!folder || !fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) {
                 throw new Error('请先选择来源目录 / Choose a source folder first.');
             }
-            names = this.listFolder(folder);
+            names = PickList.listFolderImages(folder);
         } catch (e: any) {
             post({ type: 'scanResult', data: { error: String(e?.message || e) } });
             return;

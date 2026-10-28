@@ -60,29 +60,76 @@ export function isVideoFile(name: string): boolean {
 export const FOLDER_SCAN_DEFAULT_DEPTH = 3;
 export const FOLDER_SCAN_MAX_DEPTH = 10;
 export const FOLDER_SCAN_MAX_FILES = 50000;
-const FOLDER_SCAN_CACHE_TTL_MS = 30_000;
-const folderScanCache = new Map<string, { mtimeMs: number; at: number; files: string[] }>();
+
+/**
+ * 目录枚举的增量缓存：按「目录」缓存它的直接子项（文件 + 子目录），mtime 没变就
+ * 说明这一层的增删没有发生，直接复用、不再 readdir。目录 A 里改了东西只会刷新 A
+ * 自己的 mtime，父目录的 mtime 不变，所以必须逐层校验，不能只看根目录。
+ * 代价是每个目录一次 stat，省掉的是每个目录的 readdir 与条目遍历。
+ */
+interface DirListing {
+    mtimeMs: number;
+    /** 直接子项，按名字排序，保持与逐层 walk 一致的输出顺序 */
+    children: { path: string; dir: boolean }[];
+}
+const dirListings = new Map<string, DirListing>();
+const DIR_LISTING_MAX = 20_000;
+
+/**
+ * 网盘挂载、同步盘占位文件等场景下目录 mtime 可能不刷新，定期强制把整棵树重走一遍
+ * 兜底；平时的枚举都是增量的。
+ */
+const FOLDER_SCAN_REFRESH_MS = 10 * 60_000;
+let lastFullWalkAt = 0;
+
+function readDirListing(dir: string, mtimeMs: number, force: boolean): DirListing | undefined {
+    const cached = dirListings.get(dir);
+    if (!force && cached && cached.mtimeMs === mtimeMs) {
+        return cached;
+    }
+    let entries: fs.Dirent[];
+    try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+        return undefined;
+    }
+    entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    const children: { path: string; dir: boolean }[] = [];
+    for (const entry of entries) {
+        if (entry.isDirectory()) {
+            children.push({ path: path.join(dir, entry.name), dir: true });
+        } else if (entry.isFile() && isSupportedMedia(entry.name)) {
+            children.push({ path: path.join(dir, entry.name), dir: false });
+        }
+    }
+    const listing: DirListing = { mtimeMs, children };
+    if (dirListings.size >= DIR_LISTING_MAX) {
+        dirListings.clear();
+    }
+    dirListings.set(dir, listing);
+    return listing;
+}
 
 /**
  * 递归扫描文件夹下的图片/视频文件（深度优先，目录按字母序保证结果稳定）。
  * 只返回文件，忽略子目录与不可读条目；空/不存在/非目录返回 []。
  * maxDepth 为向下递归的层数（0 = 只看当前目录）。
- * 有深度与数量上限；结果按根目录 mtime + 深度 + 短 TTL 缓存，自动换图时不必每次重扫。
+ * 有深度与数量上限；按目录 mtime 增量枚举，只有内容变过的目录才会被重新读取。
  */
 export function listImagesInFolder(folder: string, maxDepth: number = FOLDER_SCAN_DEFAULT_DEPTH): string[] {
     const depthLimit = Number.isFinite(maxDepth) ? Math.max(0, Math.floor(maxDepth)) : FOLDER_SCAN_DEFAULT_DEPTH;
     let root: string;
-    let rootMtime = 0;
     try {
         root = path.resolve(folder);
-        rootMtime = fs.statSync(root).mtimeMs;
+        fs.statSync(root);
     } catch {
         return [];
     }
-    const cacheKey = `${root}|${depthLimit}`;
-    const cached = folderScanCache.get(cacheKey);
-    if (cached && cached.mtimeMs === rootMtime && Date.now() - cached.at < FOLDER_SCAN_CACHE_TTL_MS) {
-        return cached.files.slice();
+
+    const now = Date.now();
+    const force = now - lastFullWalkAt > FOLDER_SCAN_REFRESH_MS;
+    if (force) {
+        lastFullWalkAt = now;
     }
 
     const results: string[] = [];
@@ -93,8 +140,11 @@ export function listImagesInFolder(folder: string, maxDepth: number = FOLDER_SCA
             return;
         }
         let normalized: string;
+        let mtimeMs: number;
         try {
+            // realpath 只用于识别符号链接环，枚举与返回的路径仍按用户给的写法拼
             normalized = fs.realpathSync(dir);
+            mtimeMs = fs.statSync(dir).mtimeMs;
         } catch {
             return;
         }
@@ -103,33 +153,24 @@ export function listImagesInFolder(folder: string, maxDepth: number = FOLDER_SCA
         }
         seen.add(normalized);
 
-        let entries: fs.Dirent[];
-        try {
-            entries = fs.readdirSync(normalized, { withFileTypes: true });
-        } catch {
+        const listing = readDirListing(dir, mtimeMs, force);
+        if (!listing) {
             return;
         }
-        entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-        for (const entry of entries) {
+        for (const child of listing.children) {
             if (results.length >= FOLDER_SCAN_MAX_FILES) {
                 return;
             }
-            const full = path.join(dir, entry.name);
-            try {
-                if (entry.isDirectory()) {
-                    walk(full, depth + 1);
-                } else if (entry.isFile() && isSupportedMedia(entry.name)) {
-                    results.push(full);
-                }
-            } catch {
-                // 单个条目失败不影响整体扫描
+            if (!child.dir) {
+                results.push(child.path);
+            } else if (depth < depthLimit) {
+                walk(child.path, depth + 1);
             }
         }
     };
 
     walk(root, 0);
-    folderScanCache.set(cacheKey, { mtimeMs: rootMtime, at: Date.now(), files: results });
-    return results.slice();
+    return results;
 }
 
 /**

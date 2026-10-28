@@ -5,8 +5,9 @@
  *   视频与读不到尺寸的条目返回 undefined，一律视为「未知」。
  * - filterByMinAspect：随机换图时抽样筛掉长宽比不达标的图片（视频直接放行），
  *   不需要事先扫描，也就不会因为目录变化而拿到过期结果。
- * - scanFolderSizes：图库「扫描目录」按钮用的全量统计（落盘到 globalStorage，
- *   重启窗口后统计卡片与缩略图角标不需要重新扫描）。
+ * - scanFolderSizes：图库「扫描目录」按钮用的统计（落盘到 globalStorage）。扫描是
+ *   增量的：落盘记录里存了每张图的 mtime，mtime 没变的图直接复用上次的宽高，
+ *   只有新增/改动过的图才真正用 sharp 解码。
  *
  * sharp 是可选依赖，加载失败时整个模块降级为「未知」，不影响壁纸本身。
  */
@@ -53,8 +54,8 @@ interface PersistedFolderStats {
     depth: number;
     scannedAt: number;
     summary: FolderScanResult;
-    /** 相对目录的小写路径 → [宽, 高] */
-    sizes: Record<string, [number, number]>;
+    /** 相对目录的小写路径 → [宽, 高, 文件 mtimeMs]（老版本落盘只有前两项） */
+    sizes: Record<string, [number, number, number]>;
 }
 
 let persistedStats: Record<string, PersistedFolderStats> | undefined;
@@ -105,21 +106,27 @@ function relativePathKey(folder: string, filePath: string): string | undefined {
     return target.slice(base.length + 1);
 }
 
-function lookupPersistedSize(filePath: string): ImageSize | undefined {
+/**
+ * 查落盘记录里这张图的宽度与 mtime。
+ * 老版本落盘没有 mtime，mtimeMs 为 undefined —— 只能用于展示，不能证明文件没被改过。
+ */
+function lookupPersistedEntry(filePath: string): { mtimeMs?: number; size: ImageSize } | undefined {
     const target = normalizePathKey(filePath);
     const store = loadPersistedStats();
     for (const folder of Object.keys(store)) {
         const prefix = `${folder}/`;
         if (!target.startsWith(prefix)) { continue; }
-        const hit = store[folder].sizes[target.slice(prefix.length)];
+        const hit = store[folder].sizes?.[target.slice(prefix.length)];
         if (!hit) { return undefined; }
-        const size: ImageSize = { width: hit[0], height: hit[1] };
-        if (sizeCache.size >= SIZE_CACHE_MAX) { sizeCache.clear(); }
-        // mtimeMs=0 只用来直接返回尺寸；getImageSize 会因为它不匹配而重新读盘校正。
-        sizeCache.set(filePath, { mtimeMs: 0, size });
-        return size;
+        const mtimeMs = typeof hit[2] === 'number' && Number.isFinite(hit[2]) ? hit[2] : undefined;
+        return { mtimeMs, size: { width: hit[0], height: hit[1] } };
     }
     return undefined;
+}
+
+function cacheSize(filePath: string, mtimeMs: number, size: ImageSize | undefined): void {
+    if (sizeCache.size >= SIZE_CACHE_MAX) { sizeCache.clear(); }
+    sizeCache.set(filePath, { mtimeMs, size });
 }
 
 /** 读取图片的显示尺寸（已按 EXIF 方向校正）；视频 / 不存在 / 读不到返回 undefined。 */
@@ -140,6 +147,13 @@ export async function getImageSize(filePath: string): Promise<ImageSize | undefi
     const cached = sizeCache.get(filePath);
     if (cached && cached.mtimeMs === mtimeMs) { return cached.size; }
 
+    // 上次扫描落盘的尺寸：文件没动过就不用再解码
+    const persisted = lookupPersistedEntry(filePath);
+    if (persisted && persisted.mtimeMs === mtimeMs) {
+        cacheSize(filePath, mtimeMs, persisted.size);
+        return persisted.size;
+    }
+
     let size: ImageSize | undefined;
     try {
         const meta = await sharp(filePath, { failOn: 'none' }).metadata();
@@ -154,8 +168,7 @@ export async function getImageSize(filePath: string): Promise<ImageSize | undefi
         size = undefined;
     }
 
-    if (sizeCache.size >= SIZE_CACHE_MAX) { sizeCache.clear(); }
-    sizeCache.set(filePath, { mtimeMs, size });
+    cacheSize(filePath, mtimeMs, size);
     return size;
 }
 
@@ -163,7 +176,13 @@ export async function getImageSize(filePath: string): Promise<ImageSize | undefi
 export function getCachedImageSize(filePath: string): ImageSize | undefined {
     const cached = sizeCache.get(filePath);
     if (cached) { return cached.size; }
-    return lookupPersistedSize(filePath);
+    const persisted = lookupPersistedEntry(filePath);
+    if (!persisted) { return undefined; }
+    if (persisted.mtimeMs !== undefined) {
+        // 有 mtime 才进内存缓存，免得把「老格式、无 mtime」的尺寸当成已验证结果
+        cacheSize(filePath, persisted.mtimeMs, persisted.size);
+    }
+    return persisted.size;
 }
 
 /** 长宽比 = 宽 / 高；读不到尺寸返回 undefined。 */
@@ -259,6 +278,7 @@ export function getLatestScan(folder?: string): FolderScanResult | undefined {
 
 /**
  * 统计一批图片的尺寸与长宽比分布。files 由调用方给出（已按扫描深度/上限枚举好）。
+ * 增量：上次落盘里有的图、mtime 又没变，就直接复用宽高，不再解码；其余才走 sharp。
  * onProgress 每 ~120ms 回调一次，用于图库里的进度显示。
  */
 export async function scanFolderSizes(
@@ -269,9 +289,12 @@ export async function scanFolderSizes(
     onProgress?: (p: ScanProgress) => void
 ): Promise<FolderScanResult> {
     const total = files.length;
+    const previous = loadPersistedStats()[normalizePathKey(folder)]?.sizes ?? {};
     const ratios: number[] = [];
-    const sizes: Record<string, [number, number]> = {};
-    let storedSizes = 0;
+    /** 本次扫到（或复用）的条目：相对路径 → [宽, 高, mtimeMs] */
+    const fresh: Record<string, [number, number, number]> = {};
+    /** 上次测到过、这次读不出来的条目，落盘时删掉 */
+    const broken: string[] = [];
     let measured = 0;
     let unknown = 0;
     let done = 0;
@@ -282,19 +305,43 @@ export async function scanFolderSizes(
         for (;;) {
             const index = cursor++;
             if (index >= total) { return; }
-            const size = await getImageSize(files[index]);
+            const file = files[index];
+
+            let size: ImageSize | undefined;
+            let key: string | undefined;
+            let mtimeMs: number | undefined;
+            if (!isVideoFile(file)) {
+                key = relativePathKey(folder, file);
+                try {
+                    const stat = fs.statSync(file);
+                    if (stat.isFile()) { mtimeMs = stat.mtimeMs; }
+                } catch {
+                    // 枚举后又被删掉：按未知处理
+                }
+                if (key !== undefined && mtimeMs !== undefined) {
+                    const old = previous[key];
+                    if (old && old[2] === mtimeMs && old[0] > 0 && old[1] > 0) {
+                        size = { width: old[0], height: old[1] };
+                        // 顺手填内存缓存，图库角标不用再读盘
+                        cacheSize(file, mtimeMs, size);
+                    }
+                }
+                if (!size) {
+                    size = await getImageSize(file);
+                }
+            }
+
             if (size) {
                 measured += 1;
                 ratios.push(size.width / size.height);
-                if (storedSizes < MAX_STATS_ENTRIES) {
-                    const key = relativePathKey(folder, files[index]);
-                    if (key) {
-                        sizes[key] = [size.width, size.height];
-                        storedSizes += 1;
-                    }
+                if (key !== undefined && mtimeMs !== undefined) {
+                    fresh[key] = [size.width, size.height, mtimeMs];
                 }
             } else {
                 unknown += 1;
+                if (key !== undefined && mtimeMs !== undefined) {
+                    broken.push(key);
+                }
             }
             done += 1;
             const now = Date.now();
@@ -334,14 +381,34 @@ export async function scanFolderSizes(
         buckets
     };
     latestScan = result;
-    persistScan(folder, result, sizes);
+    persistScan(folder, result, fresh, broken);
     return result;
 }
 
-/** 扫描结果落盘，并只保留最近使用的几个目录。 */
-function persistScan(folder: string, summary: FolderScanResult, sizes: Record<string, [number, number]>): void {
+/**
+ * 扫描结果落盘，并只保留最近使用的几个目录。
+ * 尺寸表与旧记录合并：换个扫描层数、或者临时扫小范围，都不会把已测过的尺寸丢掉。
+ */
+function persistScan(
+    folder: string,
+    summary: FolderScanResult,
+    fresh: Record<string, [number, number, number]>,
+    broken: string[]
+): void {
     const store = loadPersistedStats();
-    store[normalizePathKey(folder)] = { depth: summary.depth, scannedAt: summary.scannedAt, summary, sizes };
+    const folderKey = normalizePathKey(folder);
+    const sizes: Record<string, [number, number, number]> = { ...(store[folderKey]?.sizes ?? {}) };
+    let count = Object.keys(sizes).length;
+    for (const key of Object.keys(fresh)) {
+        if (!(key in sizes)) {
+            if (count >= MAX_STATS_ENTRIES) { continue; }
+            count += 1;
+        }
+        sizes[key] = fresh[key];
+    }
+    for (const key of broken) { delete sizes[key]; }
+
+    store[folderKey] = { depth: summary.depth, scannedAt: summary.scannedAt, summary, sizes };
     const keys = Object.keys(store);
     if (keys.length > MAX_STATS_FOLDERS) {
         keys.sort((a, b) => (store[a].scannedAt || 0) - (store[b].scannedAt || 0));
