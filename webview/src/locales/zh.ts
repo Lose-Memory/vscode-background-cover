@@ -13,7 +13,6 @@ export default {
     refresh:           '刷新',
 
     localGallery:      '本地图库',
-    addDirectory:      '添加目录',
     inputPath:         '输入 URL',
     confirm:           '确定',
     cancel:            '取消',
@@ -53,7 +52,7 @@ export default {
     playlist:             '播放列表',
     playlistLabel:        '列表 {n}',
     playlistSwitchHint:   '两个列表各自一个目录（递归扫描所有子目录），其余设置共用。',
-    playlistEmpty:        '播放列表 {n} 还没有选择目录，添加后即可使用。',
+    playlistEmpty:        '播放列表 {n} 还没有选择目录，点上方「选择目录」添加。',
     chooseFolder:         '选择目录',
     changeFolder:         '更换目录',
     scanDetailsExpand:    '详情',

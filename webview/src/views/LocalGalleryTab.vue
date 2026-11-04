@@ -24,10 +24,6 @@
                 <el-icon><Plus /></el-icon>
                 {{ t('selectImage') }}
             </el-button>
-            <el-button size="small" @click="onAddDir">
-                <el-icon><FolderAdd /></el-icon>
-                {{ t('addDirectory') }}
-            </el-button>
         </div>
 
         <!-- Folder library (in-panel replacement for the native QuickPick after "Add Folder") -->
@@ -158,14 +154,9 @@
             </div>
         </el-card>
 
-        <!-- 当前列表还没选目录：直接给入口，避免整页空白 -->
+        <!-- 当前列表还没选目录：只给提示，目录入口统一在上方切换卡 -->
         <el-card v-else class="grid-card" shadow="never">
-            <el-empty :description="t('playlistEmpty', { n: config.activePlaylist })" :image-size="60">
-                <el-button type="primary" size="small" @click="onAddDir">
-                    <el-icon><FolderAdd /></el-icon>
-                    {{ t('chooseFolder') }}
-                </el-button>
-            </el-empty>
+            <el-empty :description="t('playlistEmpty', { n: config.activePlaylist })" :image-size="60" />
         </el-card>
 
     </div>
@@ -173,7 +164,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { ArrowDown, ArrowUp, Plus, FolderAdd, FolderOpened, Picture, Check, VideoCamera, DataAnalysis } from '@element-plus/icons-vue';
+import { ArrowDown, ArrowUp, Plus, FolderOpened, Picture, Check, VideoCamera, DataAnalysis } from '@element-plus/icons-vue';
 import { useI18n } from '../composables/useI18n';
 import { useBridge } from '../composables/useBridge';
 import { config, state, thumbs, thumbMisses } from '../composables/useStore';

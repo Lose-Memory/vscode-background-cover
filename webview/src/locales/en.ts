@@ -13,7 +13,6 @@ export default {
     refresh:           'Refresh',
 
     localGallery:      'Local Gallery',
-    addDirectory:      'Add Folder',
     inputPath:         'Input URL',
     confirm:           'OK',
     cancel:            'Cancel',
@@ -53,7 +52,7 @@ export default {
     playlist:             'Playlists',
     playlistLabel:        'List {n}',
     playlistSwitchHint:   'Each list keeps its own folder (scanned recursively); every other setting is shared by both.',
-    playlistEmpty:        'Playlist {n} has no folder yet — add one to start using it.',
+    playlistEmpty:        'Playlist {n} has no folder yet — click "Choose folder" above to add one.',
     chooseFolder:         'Choose folder',
     changeFolder:         'Change folder',
     scanDetailsExpand:    'Details',
