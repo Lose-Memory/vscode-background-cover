@@ -192,7 +192,7 @@ const shortFolder = computed(() => {
     return p.length > 28 ? '…' + p.slice(-27) : p;
 });
 
-const folderPageSize = 40;
+const folderPageSize = 100;
 const folderPage = ref(1);
 const folderTotalPages = computed(() => Math.max(1, Math.ceil(state.folderImages.length / folderPageSize)));
 const pagedFolderImages = computed(() => {
