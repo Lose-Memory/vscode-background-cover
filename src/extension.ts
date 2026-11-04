@@ -65,10 +65,15 @@ export function activate(context: ExtensionContext) {
 					}
 				});
 			} else {
-				// 没有记录时也要走一次：清掉指向已删除图片的残留 CSS（包括首帧用的
-				// 共享文件），避免重启后先黑屏、点刷新也不生效。
-				await PickList.applyCurrentBackground();
-				PickList.startupRandomUpdate();
+				// 启动随机换图自己会写一份最终壁纸：先应用一次持久记录只会让窗口多闪
+				// 一张（共享首帧 → 记录图 → 随机图）。随机没换成图时才回退到下面的
+				// 持久记录逻辑，避免残留 CSS 指向已删除的图片。
+				const randomized = await PickList.startupRandomUpdate();
+				if (!randomized) {
+					// 没有记录时也要走一次：清掉指向已删除图片的残留 CSS（包括首帧用的
+					// 共享文件），避免重启后先黑屏、点刷新也不生效。
+					await PickList.applyCurrentBackground();
+				}
 			}
 		}
 	}).catch(err => {

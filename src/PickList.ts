@@ -118,16 +118,20 @@ export class PickList {
     /**
      * 启动窗口时随机换一张：只受「启动时随机换图」开关控制，不再依赖定时自动换图的 autoStatus。
      * 竖图比例筛选在 autoUpdateBackground 内部生效。
+     * @returns 是否真的换成了某张图（决定启动时还要不要回退去应用持久记录）
      */
-    public static startupRandomUpdate() {
+    public static async startupRandomUpdate(): Promise<boolean> {
         const config = workspace.getConfiguration('backgroundCover');
         if (!config.randomImageFolder || !config.get<boolean>('autoRandomOnStartup', true)) {
             return false;
         }
-        PickList.itemList = new PickList(config);
-        PickList.itemList.autoUpdateBackground();
-        PickList.itemList = undefined;
-        return true;
+        const pl = new PickList(config);
+        try {
+            return await pl.autoUpdateBackground();
+        } catch (err) {
+            console.error('[BackgroundCover] startup random update failed:', err);
+            return false;
+        }
     }
 
     public static randomUpdateBackground() {
@@ -299,26 +303,28 @@ export class PickList {
     private async autoUpdateBackground(persist: boolean = true): Promise<boolean> {
         this.silentApply = !persist;
         const randomImageFolder = this.resolveRandomFolder(this.config.get<string>('randomImageFolder'));
-        if (randomImageFolder) {
-            const files = this.getFolderImgList(randomImageFolder);
-            if (files.length > 0) {
-                const minRatio = this.ratioFilterValue();
-                // 抽样筛掉长宽比不达标的图片；视频/读不到尺寸的条目照旧参与随机。
-                const candidates = await filterByMinAspect(files, minRatio);
-                if (candidates.length === 0) {
-                    window.setStatusBarMessage(
-                        `没有长宽比 ≥ ${minRatio} 的图片，请调整竖图阈值或关闭比例筛选 / No image with aspect ratio >= ${minRatio}.`,
-                        5000
-                    );
-                    return false;
-                }
-                if (!persist) {
-                    return await this.applyAutoCandidates(candidates, persist);
-                }
-                const randomFile = candidates[Math.floor(Math.random() * candidates.length)];
-                await this.updateBackgound(randomFile, persist, { skipLargeImagePrompt: true });
-            }
+        if (!randomImageFolder) {
+            return false;
         }
+        const files = this.getFolderImgList(randomImageFolder);
+        if (files.length === 0) {
+            return false;
+        }
+        const minRatio = this.ratioFilterValue();
+        // 抽样筛掉长宽比不达标的图片；视频/读不到尺寸的条目照旧参与随机。
+        const candidates = await filterByMinAspect(files, minRatio);
+        if (candidates.length === 0) {
+            window.setStatusBarMessage(
+                `没有长宽比 ≥ ${minRatio} 的图片，请调整竖图阈值或关闭比例筛选 / No image with aspect ratio >= ${minRatio}.`,
+                5000
+            );
+            return false;
+        }
+        if (!persist) {
+            return await this.applyAutoCandidates(candidates, persist);
+        }
+        const randomFile = candidates[Math.floor(Math.random() * candidates.length)];
+        await this.updateBackgound(randomFile, persist, { skipLargeImagePrompt: true });
         return true;
     }
 

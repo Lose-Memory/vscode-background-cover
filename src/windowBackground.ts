@@ -111,13 +111,11 @@ export function getPersistedCurrentImage(globalFallback?: string): string {
         if (hasOwn(windowMap, sessionHash)) {
             return windowMap[sessionHash] || '';
         }
-        const workspaceKey = getWorkspaceKey();
-        if (workspaceKey) {
-            const workspaceMap = readImageMap(WORKSPACE_IMAGES_KEY);
-            if (hasOwn(workspaceMap, workspaceKey)) {
-                return workspaceMap[workspaceKey] || '';
-            }
-        }
+        // 独立模式下不再回落到工作区/全局记录：session 每次启动/重载都是新键，
+        // 新窗口永远查不到自己的记录，落下去只会捡到"别的窗口当前那张图"，
+        // 于是每窗口独立退化成"所有新窗口都跟第一个窗口一样"。没有自己的记录时
+        // 只认用户在 settings.json 里明确设置的单张图，剩下的交给启动随机换图。
+        return globalFallback || '';
     }
     const globalImage = readGlobalImage();
     if (globalImage !== undefined) {
