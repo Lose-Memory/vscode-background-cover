@@ -23,6 +23,7 @@ import { getContext } from './global';
 import { hasCurrentImageRecord, resolveCurrentBlur, resolveCurrentImagePath, resolveCurrentOpacity, setCurrentBlur, setCurrentImagePath, setCurrentOpacity } from './windowBackground';
 import { expandPathVariables, FOLDER_SCAN_DEFAULT_DEPTH, FOLDER_SCAN_MAX_DEPTH, listImagesInFolder, pickRandomFromFolder } from './pathUtil';
 import { filterByMinAspect, getImageAspect } from './imageStats';
+import { getActivePlaylist, getActivePlaylistFolder, playlistFolderKey } from './playlists';
 
 
 
@@ -107,7 +108,7 @@ export class PickList {
 
     public static autoUpdateBackground() {
         const config = workspace.getConfiguration('backgroundCover');
-        if (!config.randomImageFolder || !config.autoStatus) {
+        if (!getActivePlaylistFolder(config) || !config.autoStatus) {
             return false;
         }
         PickList.itemList = new PickList(config);
@@ -122,7 +123,7 @@ export class PickList {
      */
     public static async startupRandomUpdate(): Promise<boolean> {
         const config = workspace.getConfiguration('backgroundCover');
-        if (!config.randomImageFolder || !config.get<boolean>('autoRandomOnStartup', true)) {
+        if (!getActivePlaylistFolder(config) || !config.get<boolean>('autoRandomOnStartup', true)) {
             return false;
         }
         const pl = new PickList(config);
@@ -136,7 +137,7 @@ export class PickList {
 
     public static randomUpdateBackground() {
         const config = workspace.getConfiguration('backgroundCover');
-        if (!config.randomImageFolder) {
+        if (!getActivePlaylistFolder(config)) {
             window.showWarningMessage('Please add a directory! / 请添加目录！');
             return false;
         }
@@ -144,6 +145,24 @@ export class PickList {
         PickList.itemList.setRandUpdate(true);
         PickList.itemList.autoUpdateBackground();
         PickList.itemList = undefined;
+    }
+
+    /**
+     * 切换播放列表后立刻从新列表随机换一张，让用户马上看到变化。
+     * 新列表还没有目录时静默跳过（保持当前背景），不打警告。
+     */
+    public static async applyActivePlaylist(): Promise<boolean> {
+        const config = workspace.getConfiguration('backgroundCover');
+        if (!getActivePlaylistFolder(config)) {
+            return false;
+        }
+        const pl = new PickList(config);
+        try {
+            return await pl.autoUpdateBackground(true);
+        } catch (err) {
+            console.error('[BackgroundCover] playlist switch failed:', err);
+            return false;
+        }
     }
 
     public static async applyCurrentBackground(): Promise<boolean> {
@@ -188,7 +207,7 @@ export class PickList {
                     return;
                 }
                 const cfg = workspace.getConfiguration('backgroundCover');
-                if (cfg.randomImageFolder) {
+                if (getActivePlaylistFolder(cfg)) {
                     PickList.logAutoRefresh('Timer tick: starting refresh.');
                     PickList.isAutoRunning = true;
                     try {
@@ -302,7 +321,7 @@ export class PickList {
 
     private async autoUpdateBackground(persist: boolean = true): Promise<boolean> {
         this.silentApply = !persist;
-        const randomImageFolder = this.resolveRandomFolder(this.config.get<string>('randomImageFolder'));
+        const randomImageFolder = this.resolveRandomFolder(getActivePlaylistFolder(this.config));
         if (!randomImageFolder) {
             return false;
         }
@@ -375,7 +394,7 @@ export class PickList {
     }
 
     /**
-     * A3: 展开 randomImageFolder 中的 ~ / ${ENV} / $ENV 并校验是存在的目录；
+     * A3: 展开当前播放列表目录中的 ~ / ${ENV} / $ENV 并校验是存在的目录；
      * 无效返回空串。
      */
     private resolveRandomFolder(input?: string): string {
@@ -609,7 +628,7 @@ export class PickList {
         } else if (type === InputType.AutoRandomSettings) {
             const interval = parseInt(value);
             if (interval > 0) {
-                if (!this.config.get('randomImageFolder')) {
+                if (!getActivePlaylistFolder(this.config)) {
                     window.showWarningMessage('Please add a directory first! / 请先添加目录！');
                     return false;
                 }
@@ -684,7 +703,7 @@ export class PickList {
         if (!folderUris) { return false; }
         const fileUri = folderUris[0];
         if (type === 2) {
-            await this.setConfigValue('randomImageFolder', fileUri.fsPath, false);
+            await this.setConfigValue(playlistFolderKey(getActivePlaylist(this.config)), fileUri.fsPath, false);
             return true;
         }
         if (type === 1) {

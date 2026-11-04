@@ -15,7 +15,12 @@ export interface StudioConfig {
     autoRandomOnStartup: boolean;
     sizeModel: string;
     blendModel: string;
-    randomImageFolder: string;
+    /** 当前使用的播放列表：'1' 或 '2'；其余设置两个列表共用 */
+    activePlaylist: string;
+    /** 播放列表 1 的目录（递归扫描，含所有子目录） */
+    playlist1Folder: string;
+    /** 播放列表 2 的目录（递归扫描，含所有子目录） */
+    playlist2Folder: string;
     /** false = 所有窗口共用一张背景图（旧版行为） */
     perWindowBackground: boolean;
     /** 竖图阈值：宽/高 小于它视为竖图；比例筛选与纵向取景共用 */
@@ -80,7 +85,9 @@ export const config = reactive<StudioConfig>({
     autoRandomOnStartup: true,
     sizeModel: 'cover',
     blendModel: 'auto',
-    randomImageFolder: '',
+    activePlaylist: '1',
+    playlist1Folder: '',
+    playlist2Folder: '',
     perWindowBackground: true,
     aspectThreshold: 1.3,
     aspectFilterEnabled: false,

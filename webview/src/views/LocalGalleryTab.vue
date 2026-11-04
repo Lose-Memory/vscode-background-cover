@@ -1,5 +1,23 @@
 <template>
     <div class="local-gallery">
+        <!-- 播放列表切换：两个列表各自一个目录，其余设置共用 -->
+        <el-card class="switch-card" shadow="never">
+            <div class="playlist-row">
+                <el-radio-group
+                    :model-value="config.activePlaylist"
+                    size="small"
+                    class="playlist-group"
+                    @change="onPlaylistChange"
+                >
+                    <el-radio-button label="1">{{ t('playlistLabel', { n: 1 }) }}</el-radio-button>
+                    <el-radio-button label="2">{{ t('playlistLabel', { n: 2 }) }}</el-radio-button>
+                </el-radio-group>
+                <el-button link type="primary" class="folder-pick" :title="activeFolder || t('notSet')" @click="onAddDir">
+                    {{ activeFolder ? t('changeFolder') : t('chooseFolder') }}
+                </el-button>
+            </div>
+            <div class="playlist-hint">{{ t('playlistSwitchHint') }}</div>
+        </el-card>
         <!-- Quick actions header -->
         <div class="actions-bar">
             <el-button type="primary" size="small" @click="onPick">
@@ -13,7 +31,7 @@
         </div>
 
         <!-- Folder library (in-panel replacement for the native QuickPick after "Add Folder") -->
-        <el-card v-if="config.randomImageFolder" class="grid-card" shadow="never">
+        <el-card v-if="activeFolder" class="grid-card" shadow="never">
             <template #header>
                 <div class="folder-header">
                     <span class="card-title">
@@ -21,7 +39,7 @@
                         {{ t('folderLibrary') }}
                         <el-tag size="small" round>{{ state.folderImagesTruncated ? '≥' : '' }}{{ state.folderImagesTotal }}</el-tag>
                     </span>
-                    <span class="folder-path" :title="config.randomImageFolder">
+                    <span class="folder-path" :title="activeFolder">
                         {{ shortFolder }}
                     </span>
                 </div>
@@ -35,30 +53,40 @@
                 <span class="scan-status" :title="scanStatus">{{ scanStatus }}</span>
             </div>
 
-            <div v-if="state.folderScan" class="scan-stats">
-                <div class="stat-row">
-                    <span>{{ t('scanTotal', { n: state.folderScan.total }) }}</span>
-                    <span>{{ t('scanMeasured', { n: state.folderScan.measured }) }}</span>
-                    <span v-if="state.folderScan.unknown">{{ t('scanUnknown', { n: state.folderScan.unknown }) }}</span>
+            <div v-if="state.folderScan" class="scan-block">
+                <div class="scan-summary">
+                    <span class="scan-summary-text">
+                        {{ t('scanTotal', { n: state.folderScan.total }) }}
+                        <span class="stat-h">{{ t('scanHorizontal', { n: state.folderScan.horizontal }) }}</span>
+                        <span class="stat-p">{{ t('scanPortrait', { n: state.folderScan.portrait }) }}</span>
+                    </span>
+                    <el-button link type="primary" size="small" class="scan-toggle" @click="scanOpen = !scanOpen">
+                        {{ scanOpen ? t('scanDetailsCollapse') : t('scanDetailsExpand') }}
+                        <el-icon><component :is="scanOpen ? ArrowUp : ArrowDown" /></el-icon>
+                    </el-button>
                 </div>
-                <div class="stat-row">
-                    <span class="stat-h">{{ t('scanHorizontal', { n: state.folderScan.horizontal }) }}</span>
-                    <span class="stat-p">{{ t('scanPortrait', { n: state.folderScan.portrait }) }}</span>
-                </div>
-                <div class="stat-row stat-range">
-                    {{ t('scanRatioRange', {
-                        median: formatRatio(state.folderScan.medianRatio),
-                        min: formatRatio(state.folderScan.minRatio),
-                        max: formatRatio(state.folderScan.maxRatio)
-                    }) }}
-                </div>
-                <div class="bucket-list">
-                    <div v-for="b in state.folderScan.buckets" :key="b.key" class="bucket">
-                        <span class="bucket-key">{{ b.key }}</span>
-                        <span class="bucket-track"><i :style="{ width: bucketWidth(b.count) }"></i></span>
-                        <span class="bucket-count">{{ b.count }}</span>
+                <el-collapse-transition>
+                    <div v-show="scanOpen" class="scan-stats">
+                        <div class="stat-row">
+                            <span>{{ t('scanMeasured', { n: state.folderScan.measured }) }}</span>
+                            <span v-if="state.folderScan.unknown">{{ t('scanUnknown', { n: state.folderScan.unknown }) }}</span>
+                        </div>
+                        <div class="stat-row stat-range">
+                            {{ t('scanRatioRange', {
+                                median: formatRatio(state.folderScan.medianRatio),
+                                min: formatRatio(state.folderScan.minRatio),
+                                max: formatRatio(state.folderScan.maxRatio)
+                            }) }}
+                        </div>
+                        <div class="bucket-list">
+                            <div v-for="b in state.folderScan.buckets" :key="b.key" class="bucket">
+                                <span class="bucket-key">{{ b.key }}</span>
+                                <span class="bucket-track"><i :style="{ width: bucketWidth(b.count) }"></i></span>
+                                <span class="bucket-count">{{ b.count }}</span>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                </el-collapse-transition>
             </div>
 
             <el-empty
@@ -130,12 +158,22 @@
             </div>
         </el-card>
 
+        <!-- 当前列表还没选目录：直接给入口，避免整页空白 -->
+        <el-card v-else class="grid-card" shadow="never">
+            <el-empty :description="t('playlistEmpty', { n: config.activePlaylist })" :image-size="60">
+                <el-button type="primary" size="small" @click="onAddDir">
+                    <el-icon><FolderAdd /></el-icon>
+                    {{ t('chooseFolder') }}
+                </el-button>
+            </el-empty>
+        </el-card>
+
     </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Plus, FolderAdd, FolderOpened, Picture, Check, VideoCamera, DataAnalysis } from '@element-plus/icons-vue';
+import { ArrowDown, ArrowUp, Plus, FolderAdd, FolderOpened, Picture, Check, VideoCamera, DataAnalysis } from '@element-plus/icons-vue';
 import { useI18n } from '../composables/useI18n';
 import { useBridge } from '../composables/useBridge';
 import { config, state, thumbs, thumbMisses } from '../composables/useStore';
@@ -145,8 +183,20 @@ import { isVideoPath } from '../utils/media';
 const { t } = useI18n();
 const bridge = useBridge();
 
+// 当前播放列表的目录：图库列表、目录扫描与「来源目录」都跟着它走
+const activeFolder = computed(() => (config.activePlaylist === '2' ? config.playlist2Folder : config.playlist1Folder));
+
+/** 切换播放列表：只换目录，其余设置两个列表共用；后端会立刻从新列表随机换一张。 */
+function onPlaylistChange(value: string | number | boolean | undefined) {
+    const next = String(value) === '2' ? '2' : '1';
+    if (next === config.activePlaylist) { return; }
+    // 先本地切换让选择器立刻响应，随后后端回推真实状态。
+    config.activePlaylist = next;
+    bridge.post({ type: 'setConfig', key: 'activePlaylist', value: next });
+}
+
 const shortFolder = computed(() => {
-    const p = config.randomImageFolder || '';
+    const p = activeFolder.value || '';
     if (!p) { return ''; }
     return p.length > 28 ? '…' + p.slice(-27) : p;
 });
@@ -161,7 +211,7 @@ const pagedFolderImages = computed(() => {
 function onFolderPageChange(p: number) { folderPage.value = p; }
 
 // Reset to page 1 whenever the folder source or list size changes.
-watch(() => config.randomImageFolder, () => { folderPage.value = 1; });
+watch(activeFolder, () => { folderPage.value = 1; });
 watch(() => state.folderImages.length, () => {
     if (folderPage.value > folderTotalPages.value) { folderPage.value = 1; }
 });
@@ -196,6 +246,8 @@ watch(pendingThumbPaths, (paths) => {
 const scanning = ref(false);
 const scanProgress = ref<{ done: number; total: number } | null>(null);
 const scanError = ref('');
+// 扫描详情默认收起，只留一行摘要
+const scanOpen = ref(false);
 
 const scanStatus = computed(() => {
     if (scanning.value && scanProgress.value) {
@@ -280,6 +332,35 @@ function onHover(ev: Event, entering: boolean) {
     display: flex;
     gap: 8px;
     .el-button { flex: 1 1 0; }
+}
+
+/* ---------- 播放列表切换 ---------- */
+.switch-card :deep(.el-card__body) { padding: 8px 12px; }
+
+.playlist-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.playlist-group {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    :deep(.el-radio-button) { flex: 1 1 0; }
+    :deep(.el-radio-button__inner) { width: 100%; }
+}
+
+.folder-pick {
+    flex: 0 0 auto;
+    font-size: 11px;
+}
+
+.playlist-hint {
+    margin-top: 6px;
+    font-size: 10px;
+    line-height: 15px;
+    color: var(--vscode-descriptionForeground);
 }
 
 .grid-card :deep(.el-card__header) { padding: 8px 12px; }
@@ -445,8 +526,32 @@ function onHover(ev: Event, entering: boolean) {
     text-overflow: ellipsis;
 }
 
+.scan-block { margin-bottom: 10px; }
+
+.scan-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: var(--studio-input-bg);
+    border: 1px solid rgba(120, 140, 200, 0.18);
+    font-size: 11px;
+}
+
+.scan-summary-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    color: var(--vscode-foreground);
+}
+
+.scan-toggle { flex: 0 0 auto; font-size: 11px; }
+
 .scan-stats {
-    margin-bottom: 10px;
+    margin-top: 8px;
     padding: 8px 10px;
     border-radius: 8px;
     background: var(--studio-input-bg);

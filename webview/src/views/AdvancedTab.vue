@@ -33,11 +33,12 @@
 
             <div class="row">
                 <span class="row-label">{{ t('sourceFolder') }}</span>
-                <el-button link type="primary" class="folder-btn" :title="config.randomImageFolder" @click="onSourceFolder">
+                <el-button link type="primary" class="folder-btn" :title="activeFolder" @click="onSourceFolder">
                     <span class="folder-text">{{ shortFolder || t('notSet') }}</span>
                     <el-icon><ArrowRight /></el-icon>
                 </el-button>
             </div>
+            <div class="row-hint">{{ t('sourceFolderHint') }}</div>
 
             <div class="row">
                 <span class="row-label">{{ t('autoRandomOnStartup') }}</span>
@@ -200,8 +201,11 @@ const BLEND_MODE_LABEL_KEYS: Record<string, MessageKey> = {
     lighten:  'blendModeLighten'
 };
 
+// 「来源目录」显示当前播放列表的目录（两个列表各自一个目录，其余设置共用）
+const activeFolder = computed(() => (config.activePlaylist === '2' ? config.playlist2Folder : config.playlist1Folder));
+
 const shortFolder = computed(() => {
-    const p = config.randomImageFolder || '';
+    const p = activeFolder.value || '';
     if (!p) { return ''; }
     return p.length > 26 ? '…' + p.slice(-25) : p;
 });

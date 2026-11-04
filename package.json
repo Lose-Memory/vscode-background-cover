@@ -2,7 +2,7 @@
     "name": "background-cover",
     "displayName": "background-cover",
     "description": "Add a picture you like to cover the entire vscode background (Hot Reload Supported). / 添加你喜欢的图片覆盖整个vscode背景（支持热更新）",
-    "version": "3.9.9",
+    "version": "3.10.0",
     "publisher": "manasxx",
     "engines": {
         "vscode": "^1.38.0"
@@ -86,10 +86,30 @@
                     "default": true,
                     "description": "Let each window keep its own background image. Turn this off to share one background across all windows (legacy behavior). / 每个窗口使用各自的背景图；关闭后所有窗口共用同一张背景图（旧版行为）"
                 },
+                "backgroundCover.activePlaylist": {
+                    "type": "string",
+                    "enum": [
+                        "1",
+                        "2"
+                    ],
+                    "default": "1",
+                    "markdownDescription": "当前使用的播放列表：随机换图、图库与目录扫描都用它的目录，其余设置两个列表共用。<br>**Playlist** — which list drives random rotation, the gallery and folder scanning; every other setting is shared."
+                },
+                "backgroundCover.playlist1Folder": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Playlist 1 folder, scanned recursively / 播放列表 1 的目录（递归扫描子目录）"
+                },
+                "backgroundCover.playlist2Folder": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Playlist 2 folder, scanned recursively / 播放列表 2 的目录（递归扫描子目录）"
+                },
                 "backgroundCover.randomImageFolder": {
                     "type": "string",
                     "default": "",
-                    "description": "Background image's folder path for random / 图片目录"
+                    "deprecationMessage": "已迁移到 backgroundCover.playlist1Folder / Migrated to backgroundCover.playlist1Folder",
+                    "description": "Deprecated: playlist 1 folder (migrated automatically on startup) / 已弃用：播放列表 1 的目录（启动时自动迁移）"
                 },
                 "backgroundCover.folderScanDepth": {
                     "type": "number",

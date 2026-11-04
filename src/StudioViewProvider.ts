@@ -20,6 +20,7 @@ import { resolveCurrentBlur, resolveCurrentImagePath, resolveCurrentOpacity } fr
 import { expandPathVariables, FOLDER_SCAN_MAX_FILES } from './pathUtil';
 import { getThumbnail } from './thumbnails';
 import { getCachedImageSize, getLatestScan, scanFolderSizes } from './imageStats';
+import { getActivePlaylist, getActivePlaylistFolder, getPlaylistFolder } from './playlists';
 import { getImagePosition, setImagePosition } from './imagePositions';
 
 const PUSH_DEBOUNCE_MS = 120;
@@ -115,7 +116,7 @@ export class StudioViewProvider implements WebviewViewProvider {
         const imagePath = resolveCurrentImagePath(cfg.get<string>('imagePath') || '');
         const imagePathDisplay = this.toWebviewUri(imagePath);
 
-        const folder = expandPathVariables(cfg.get<string>('randomImageFolder') || '');
+        const folder = expandPathVariables(getActivePlaylistFolder(cfg));
         let folderImages: { path: string; display: string; name: string; width?: number; height?: number; ratio?: number }[] = [];
         let folderImagesTotal = 0;
         let folderImagesTruncated = false;
@@ -171,7 +172,10 @@ export class StudioViewProvider implements WebviewViewProvider {
                     autoRandomOnStartup: cfg.get('autoRandomOnStartup') ?? true,
                     sizeModel: cfg.get('sizeModel') ?? 'cover',
                     blendModel: cfg.get('blendModel') ?? 'auto',
-                    randomImageFolder: cfg.get('randomImageFolder') ?? '',
+                    // 当前播放列表与两个列表各自的目录；图库只列当前列表的目录。
+                    activePlaylist: String(getActivePlaylist(cfg)),
+                    playlist1Folder: getPlaylistFolder(cfg, 1),
+                    playlist2Folder: getPlaylistFolder(cfg, 2),
                     perWindowBackground: cfg.get('perWindowBackground') ?? true,
                     backgroundTransition: true,
                     aspectThreshold: cfg.get('aspectThreshold') ?? 1.3,
@@ -289,7 +293,7 @@ export class StudioViewProvider implements WebviewViewProvider {
         if (this.scanning) { return; }
 
         const cfg = workspace.getConfiguration('backgroundCover');
-        const folder = expandPathVariables(cfg.get<string>('randomImageFolder') || '');
+        const folder = expandPathVariables(getActivePlaylistFolder(cfg));
         let names: string[] = [];
         try {
             if (!folder || !fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) {

@@ -20,10 +20,11 @@ import {
 import * as fs from 'fs';
 import { PickList } from './PickList';
 import { setContext } from './global';
-import { CUSTOM_JS_FILE_PATH, collectStaleWindowCssFiles, detectPatchState } from './FileDom';
+import { CUSTOM_JS_FILE_PATH, collectStaleWindowCssFiles, detectPatchState, readRenderedImagePath } from './FileDom';
 import { pruneOldThumbnails } from './thumbnails';
 import { StudioViewProvider } from './StudioViewProvider';
-import { hasCurrentImageRecord, resolveCurrentImagePath, setCurrentBlur, setCurrentImagePath, setCurrentOpacity } from './windowBackground';
+import { hasCurrentImageRecord, hasCurrentSessionRecord, resolveCurrentImagePath, setCurrentBlur, setCurrentImagePath, setCurrentOpacity } from './windowBackground';
+import { migrateLegacyFolder } from './playlists';
 
 
 export function activate(context: ExtensionContext) {
@@ -36,8 +37,14 @@ export function activate(context: ExtensionContext) {
 	backImgBtn.show();
 	context.subscriptions.push(backImgBtn);
 
-	// 异步检查 VSCode 版本变化，不阻塞启动
-	checkVSCodeVersionChanged(context).then(async isChanged => {
+	// 旧版单目录设置迁移成播放列表 1（有旧值时才写一次），完成后再走启动逻辑
+	migrateLegacyFolder()
+		.catch(err => { console.error('[BackgroundCover] playlist migration failed:', err); return false; })
+		// 窗口刚打开时本窗口还没有记录，而首帧渲染用的是共享 CSS 里上一次应用的图：
+		// 先把它记到本窗口，Studio 面板才不会一直显示"未设置"。
+		.then(() => seedCurrentImageFromRenderedCss())
+		.then(() => checkVSCodeVersionChanged(context))
+		.then(async isChanged => {
 		if (!isChanged) {
 			const config = workspace.getConfiguration('backgroundCover');
 			const resolved = resolveCurrentImagePath(config.imagePath || '');
@@ -98,6 +105,10 @@ export function activate(context: ExtensionContext) {
 			// 切换独立/共用模式：重新应用一次，让本窗口写到新的目标 CSS 文件，
 			// 并把注入端的地址复位。其余窗口各自收到同一事件后自行处理。
 			void PickList.applyCurrentBackground();
+		}
+		if (e.affectsConfiguration('backgroundCover.activePlaylist')) {
+			// 切换播放列表：立刻从新列表随机换一张，让用户马上看到变化。
+			void PickList.applyActivePlaylist();
 		}
 	}));
 
@@ -169,8 +180,8 @@ export function activate(context: ExtensionContext) {
 			return;
 		}
 		await config.update(key.replace(/^backgroundCover\./, ''), value, true);
-		if (key === 'backgroundCover.perWindowBackground') {
-			// 重新应用交给 onDidChangeConfiguration 统一处理，避免连开两次。
+		if (key === 'backgroundCover.perWindowBackground' || key === 'backgroundCover.activePlaylist') {
+			// 重新应用 / 随机换图交给 onDidChangeConfiguration 统一处理，避免重复触发。
 			return;
 		}
 		PickList.needAutoUpdate(workspace.getConfiguration('backgroundCover'));
@@ -235,6 +246,20 @@ async function checkVSCodeVersionChanged(context: ExtensionContext): Promise<boo
 	}
 
 	return false;
+}
+
+/**
+ * 启动时把渲染层首帧实际在用的背景（共享 CSS 里那张图）记到本窗口。
+ * per-window 模式下本窗口记录只有在真正应用过一次之后才存在，而窗口刚打开时
+ * 屏幕上显示的其实是共享 CSS 的图 —— 少了这一步，Studio 面板会一直显示
+ * "未设置"，直到启动随机换图完成或用户手动刷新才同步。
+ */
+async function seedCurrentImageFromRenderedCss(): Promise<void> {
+	if (hasCurrentSessionRecord()) { return; }
+	const rendered = await readRenderedImagePath();
+	if (rendered) {
+		await setCurrentImagePath(rendered);
+	}
 }
 
 async function promptRestartWindow(): Promise<void> {

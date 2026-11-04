@@ -384,6 +384,33 @@ export async function detectPatchState(): Promise<PatchState> {
     return detectPatchStateFromFile(JS_FILE_PATH);
 }
 
+/**
+ * 读取「渲染层首帧实际在用」的背景图：共享 CSS 里记录的 background-image URL。
+ * 窗口刚打开时本窗口还没有记录，屏幕上显示的其实是共享 CSS 里上一次应用的图。
+ * 返回本地绝对路径；在线图 / data URL / 视频 / 文件已删除时返回 undefined。
+ */
+export async function readRenderedImagePath(): Promise<string | undefined> {
+    try {
+        if (!(await fse.pathExists(CUSTOM_CSS_FILE_PATH))) {
+            return undefined;
+        }
+        const css = await fse.readFile(CUSTOM_CSS_FILE_PATH, 'utf-8');
+        const match = /background-image\s*:\s*url\(\s*(['"]?)([^'")]+)\1\s*\)/i.exec(css);
+        if (!match) {
+            return undefined;
+        }
+        const prefix = 'vscode-file://vscode-app/';
+        const raw = match[2].trim();
+        if (!raw.toLowerCase().startsWith(prefix)) {
+            return undefined;
+        }
+        const filePath = path.normalize(decodeURIComponent(raw.slice(prefix.length)));
+        return (await fse.pathExists(filePath)) ? filePath : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 export class FileDom {
     private readonly filePath: string;
     private readonly extName = "backgroundCover";

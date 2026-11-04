@@ -100,6 +100,17 @@ export function hasCurrentImageRecord(): boolean {
 }
 
 /**
+ * 本窗口(session)是否已经有自己的背景记录（空字符串也算：用户显式清除了背景，
+ * 不该再被"屏幕上那张图"复活）。用于启动时判断要不要补一条记录。
+ */
+export function hasCurrentSessionRecord(): boolean {
+    if (!isPerWindowEnabled()) {
+        return readGlobalImage() !== undefined;
+    }
+    return hasOwn(readImageMap(WINDOW_IMAGES_KEY), getSessionHash());
+}
+
+/**
  * 当前"持久化"的背景图：window → workspace → global → settings 兜底。
  * 与 resolveCurrentImagePath 的区别是刻意忽略 volatile 内存态（定时自动换图
  * 只写内存的临时图），供判断"在线单图源记录是否仍是当前背景"这类场景使用。
