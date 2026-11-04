@@ -1,4 +1,3 @@
-
 <h1 align="center">
     <img src="resources/background-cover.png" alt="logo" width="180"><br>
     VS Code - Background Cover
@@ -13,7 +12,6 @@
 
 ![Background Cover Studio preview](resources/readme-preview.jpg)
 
-
 ## 🚀 3.8.0 本地精简版
 
 本分支只保留「用本地图像作壁纸」这一件事，其余功能已移除：
@@ -24,6 +22,7 @@
 4. **❌ 取消播放历史**：不再记录「最近使用」的图片，图库页不再有历史列表。
 5. **✅ 新增递归检索**：`backgroundCover.folderScanDepth` 设置（默认 3 层，0 = 只看当前目录），随机换图与目录选图都会递归扫描子目录，最多 50000 张。
 6. **✅ 图库改用缩略图**：侧边栏图库预览由 sharp 生成 160px WebP 缩略图（按路径 + 修改时间缓存在扩展目录），不再加载原图。
+
 ---
 
 ## 🌟 功能特性
@@ -43,7 +42,6 @@
 - **跨平台支持**：兼容 Windows、MacOS、Linux 及 Code-Server。
 - **自动权限处理**：Windows 下自动获取写入权限，无需手动操作。
 
-
 ## ⚠️ 注意事项
 
 > 本插件通过修改 VS Code 内部文件实现效果。
@@ -52,16 +50,8 @@
 2. **初次安装/更新**：如遇「安装损坏」提示，扩展已自动屏蔽，无需任何操作。
 3. **背景重叠/异常**：升级后如遇背景重叠，请重启 VS Code。
 4. **还原方法**：如 VS Code 无法打开，请手动还原：
-   - 路径：`Microsoft VS Code\resources\app\out\vs\workbench\`
-   - 将 `workbench.desktop.main.js.bak` 重命名为 `workbench.desktop.main.js`
-
-
-## 🖼️ 效果展示
-
-![](https://github.com/user-attachments/assets/7bd68f60-55af-42e8-980a-99bf1b3e078d)
-![](https://github.com/user-attachments/assets/047617e6-7e09-441e-b9df-ae6a2bb940d9)
-![](https://github.com/user-attachments/assets/3c0a214f-7563-43b9-9579-314647808ccf)
-
+    - 路径：`Microsoft VS Code\resources\app\out\vs\workbench\`
+    - 将 `workbench.desktop.main.js.bak` 重命名为 `workbench.desktop.main.js`
 
 ## ⚙️ 配置方式
 
@@ -71,8 +61,7 @@
 - **外观**：调整透明度、模糊度、填充模式。
 - **高级**：配置自动轮播间隔、混合模式，以及「应用更改 / 重启窗口」按钮。
 
-*也可通过命令面板 `Ctrl + Shift + P` -> `backgroundCover - start` 进入设置*
-
+_也可通过命令面板 `Ctrl + Shift + P` -> `backgroundCover - start` 进入设置_
 
 ## 📝 快捷键与使用
 
@@ -82,15 +71,11 @@
 
 > **首次升级到 3.x 必须重新授权并重启 VS Code 才能生效！**
 
-
-
-
 ## 🗑️ 卸载说明
 
 1. 禁用/卸载插件
 2. 重启 VS Code
 3. 插件会自动清理残留背景
-
 
 ## ❓ 常见问题
 
@@ -114,6 +99,7 @@ A: 插件会自动请求密码，或手动 `sudo chown` 相关文件。
 4. 图库预览改用 sharp 生成的缩略图，不再加载原图。
 
 ## 📄 许可证
+
 本项目采用 [MIT 许可证](LICENSE) 进行许可。
 
 ---
