@@ -15,6 +15,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getContext } from './global';
 import { isVideoFile } from './pathUtil';
+import { getThumbnail } from './thumbnails';
 
 export interface ImageSize {
     width: number;
@@ -266,6 +267,8 @@ export interface ScanProgress {
 }
 
 const SCAN_CONCURRENCY = 8;
+/** 图库最多展示 2000 张（StudioViewProvider 的 slice 上限），超出的不必预生成缩略图 */
+const THUMB_SCAN_LIMIT = 2000;
 
 let latestScan: FolderScanResult | undefined;
 
@@ -344,6 +347,11 @@ export async function scanFolderSizes(
                 }
             }
             done += 1;
+            // 扫描时顺手把缩略图生成好：图库第一次打开就能直接看到，不用再逐张等。
+            // 图库最多展示 THUMB_SCAN_LIMIT 张，超出的不必预先压。
+            if (index < THUMB_SCAN_LIMIT && !isVideoFile(file)) {
+                await getThumbnail(file);
+            }
             const now = Date.now();
             if (onProgress && (done === total || now - lastReport > 120)) {
                 lastReport = now;
