@@ -25,9 +25,6 @@ import { getImagePosition, setImagePosition } from './imagePositions';
 
 const PUSH_DEBOUNCE_MS = 120;
 
-/** globalState keys the webview may write directly via `setGlobalState`. */
-const WEBVIEW_WRITABLE_STATE_KEYS = new Set<string>(['backgroundCoverLocale']);
-
 /**
  * Vue-powered single-pane configuration webview.
  *
@@ -38,14 +35,13 @@ const WEBVIEW_WRITABLE_STATE_KEYS = new Set<string>(['backgroundCoverLocale']);
  *   { type: 'ready' }
  *   { type: 'runAction', action: number, path?: string }
  *   { type: 'setConfig', key: string, value: any }
- *   { type: 'setGlobalState', key: string, value: any }
  *   { type: 'thumbnailsRequest', paths: string[] }
  *   { type: 'scanFolder' }
  *   { type: 'applyDecorations' }
  *   { type: 'openExternal', url: string }
  *
  * Outbound:
- *   { type: 'state', data: { locale, config, state } }
+ *   { type: 'state', data: { config, state } }
  *   { type: 'scanProgress', data: { done, total } }
  *   { type: 'scanResult', data: FolderScanResult | { error } }
  *   { type: 'navigate', tab: 'home'|'advanced' }
@@ -111,7 +107,6 @@ export class StudioViewProvider implements WebviewViewProvider {
         if (!this.view) { return; }
         if (this.pushTimer) { clearTimeout(this.pushTimer); this.pushTimer = undefined; }
         const cfg = workspace.getConfiguration('backgroundCover');
-        const gs = this.ctx.globalState;
 
         const imagePath = resolveCurrentImagePath(cfg.get<string>('imagePath') || '');
         const imagePathDisplay = this.toWebviewUri(imagePath);
@@ -150,16 +145,11 @@ export class StudioViewProvider implements WebviewViewProvider {
             const logoUri = Uri.joinPath(this.ctx.extensionUri, 'resources', 'background-cover.png');
             brandLogo = this.view.webview.asWebviewUri(logoUri).toString();
         } catch { brandLogo = ''; }
-        const pkg = (this.ctx.extension && (this.ctx.extension as any).packageJSON) || {};
-        const brandName: string = pkg.displayName || pkg.name || 'background-cover';
 
         this.view.webview.postMessage({
             type: 'state',
             data: {
-                locale: (gs.get<string>('backgroundCoverLocale') as 'en' | 'zh' | undefined)
-                    ?? (env.language.startsWith('zh') ? 'zh' : 'en'),
                 brandLogo,
-                brandName,
                 config: {
                     // 透明度/模糊度按窗口+工作区独立存储，推送当前窗口实际生效的值，
                     // 不同工作区窗口的 webview 会显示各自不同的数值。
@@ -241,13 +231,6 @@ export class StudioViewProvider implements WebviewViewProvider {
                 return;
             }
 
-            case 'setGlobalState':
-                if (typeof msg.key === 'string' && WEBVIEW_WRITABLE_STATE_KEYS.has(msg.key)) {
-                    await this.ctx.globalState.update(msg.key, msg.value);
-                    onDidChangeGlobalState.fire();
-                }
-                return;
-
             case 'thumbnailsRequest': {
                 const paths: string[] = Array.isArray(msg.paths)
                     ? msg.paths.filter((p: unknown): p is string => typeof p === 'string' && p.length > 0)
@@ -308,7 +291,7 @@ export class StudioViewProvider implements WebviewViewProvider {
         let names: string[] = [];
         try {
             if (!folder || !fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) {
-                throw new Error('请先选择来源目录 / Choose a source folder first.');
+                throw new Error('请先选择来源目录。');
             }
             names = PickList.listFolderImages(folder);
         } catch (e: any) {
@@ -317,7 +300,7 @@ export class StudioViewProvider implements WebviewViewProvider {
         }
 
         if (!names.length) {
-            post({ type: 'scanResult', data: { error: '目录内没有图片或视频 / The folder has no media.' } });
+            post({ type: 'scanResult', data: { error: '目录内没有图片或视频。' } });
             return;
         }
 
@@ -406,7 +389,7 @@ export class StudioViewProvider implements WebviewViewProvider {
         try {
             html = fs.readFileSync(indexFile, 'utf8');
         } catch {
-            return this.fallbackHtml('webview-dist/index.html not found. Run `npm run build:webview`.');
+            return this.fallbackHtml('未找到 webview-dist/index.html，请先执行 npm run build:webview 构建面板。');
         }
 
         const nonce = crypto.randomBytes(16).toString('base64');
@@ -431,7 +414,7 @@ export class StudioViewProvider implements WebviewViewProvider {
 
     private fallbackHtml(msg: string): string {
         return `<!doctype html><html><body style="font-family:sans-serif;padding:16px;color:#ccc;background:#1e1e1e">
-            <h3>Background Cover Studio</h3>
+            <h3>背景封面工作室</h3>
             <p>${msg}</p>
         </body></html>`;
     }

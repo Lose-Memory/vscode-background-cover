@@ -92,7 +92,7 @@ export class PickList {
                 // the Decoration tab gives the user explicit control. We just
                 // hint via the status bar so they know the change is staged.
                 window.setStatusBarMessage(
-                    '部分修改需重启窗口生效（装饰栏 → 重启生效） / Restart required for some changes.',
+                    '部分修改需重启窗口生效（装饰栏 → 重启生效）',
                     6000
                 );
             }
@@ -138,7 +138,7 @@ export class PickList {
     public static randomUpdateBackground() {
         const config = workspace.getConfiguration('backgroundCover');
         if (!getActivePlaylistFolder(config)) {
-            window.showWarningMessage('Please add a directory! / 请添加目录！');
+            window.showWarningMessage('请添加目录！');
             return false;
         }
         PickList.itemList = new PickList(config);
@@ -200,28 +200,28 @@ export class PickList {
         PickList.stopAutoRandomTask();
 
         if (autoStatus && interval > 0) {
-            PickList.logAutoRefresh(`Timer started. Interval: ${interval}s.`);
+            PickList.logAutoRefresh(`定时器已启动，间隔 ${interval} 秒。`);
             PickList.intervalHandle = setInterval(async () => {
                 if (PickList.isAutoRunning) {
-                    PickList.logAutoRefresh('Timer tick skipped: previous refresh is still running.');
+                    PickList.logAutoRefresh('跳过本次定时：上一次换图仍在进行。');
                     return;
                 }
                 const cfg = workspace.getConfiguration('backgroundCover');
                 if (getActivePlaylistFolder(cfg)) {
-                    PickList.logAutoRefresh('Timer tick: starting refresh.');
+                    PickList.logAutoRefresh('定时触发：开始换图。');
                     PickList.isAutoRunning = true;
                     try {
                         const pl = new PickList(cfg);
                         await pl.autoUpdateBackground(false);
-                        PickList.logAutoRefresh('Refresh cycle finished.');
+                        PickList.logAutoRefresh('本轮换图完成。');
                     } catch (err) {
-                        PickList.logAutoRefresh('Refresh cycle failed; see extension host console for details.');
+                        PickList.logAutoRefresh('本轮换图失败，详情见扩展宿主控制台。');
                         console.error(err);
                     } finally {
                         PickList.isAutoRunning = false;
                     }
                 } else {
-                    PickList.logAutoRefresh('Timer tick skipped: no image folder configured.');
+                    PickList.logAutoRefresh('跳过本次定时：未配置图片目录。');
                 }
             }, interval * 1000);
         }
@@ -229,7 +229,7 @@ export class PickList {
 
     private static logAutoRefresh(message: string): void {
         if (!PickList.autoRefreshOutput) {
-            PickList.autoRefreshOutput = window.createOutputChannel('Background Cover');
+            PickList.autoRefreshOutput = window.createOutputChannel('背景封面');
             getContext().subscriptions.push(PickList.autoRefreshOutput);
         }
         PickList.autoRefreshOutput.appendLine(`[${new Date().toISOString()}] ${message}`);
@@ -239,7 +239,7 @@ export class PickList {
         if (PickList.intervalHandle) {
             clearInterval(PickList.intervalHandle);
             PickList.intervalHandle = undefined;
-            PickList.logAutoRefresh('Timer stopped.');
+            PickList.logAutoRefresh('定时器已停止。');
         }
     }
 
@@ -249,7 +249,7 @@ export class PickList {
         }
         const extensionUri = getContext().extensionUri ?? extensions.getExtension("manasxx.background-cover")?.extensionUri;
         if (!extensionUri) {
-            return window.showWarningMessage('未找到扩展资源路径 / Extension resource path not found');
+            return window.showWarningMessage('未找到扩展资源路径');
         }
 
         const segments = path.split(/[\\/]+/).filter(Boolean);
@@ -334,7 +334,7 @@ export class PickList {
         const candidates = await filterByMinAspect(files, minRatio);
         if (candidates.length === 0) {
             window.setStatusBarMessage(
-                `没有长宽比 ≥ ${minRatio} 的图片，请调整竖图阈值或关闭比例筛选 / No image with aspect ratio >= ${minRatio}.`,
+                `没有长宽比 ≥ ${minRatio} 的图片，请调整竖图阈值或关闭比例筛选。`,
                 5000
             );
             return false;
@@ -373,7 +373,7 @@ export class PickList {
                 return false;
             }
         }
-        window.setStatusBarMessage('自动换图失败，将在下个间隔再试 / Auto background update failed, will retry next interval.', 5000);
+        window.setStatusBarMessage('自动换图失败，将在下个间隔再试。', 5000);
         return false;
     }
 
@@ -417,24 +417,24 @@ export class PickList {
      */
     private showOpacitySlider() {
         const presets: { value: number; label: string }[] = [
-            { value: 0,    label: '0%   (Off / 关闭)' },
+            { value: 0,    label: '0%（关闭）' },
             { value: 0.05, label: '5%' },
             { value: 0.1,  label: '10%' },
             { value: 0.15, label: '15%' },
-            { value: 0.2,  label: '20%  (Default / 默认)' },
+            { value: 0.2,  label: '20%（默认）' },
             { value: 0.25, label: '25%' },
             { value: 0.3,  label: '30%' },
             { value: 0.4,  label: '40%' },
             { value: 0.5,  label: '50%' },
             { value: 0.6,  label: '60%' },
             { value: 0.7,  label: '70%' },
-            { value: 0.8,  label: '80%  (Max / 最大)' },
+            { value: 0.8,  label: '80%（最大）' },
         ];
         this.showSliderPicker(
             'opacity',
             this.opacity,
             presets,
-            'Background Opacity / 背景透明度（←→ 预览，Enter 确认，ESC 还原）'
+            '背景透明度（←→ 预览，回车确认，Esc 还原）'
         );
     }
 
@@ -443,7 +443,7 @@ export class PickList {
      */
     private showBlurSlider() {
         const presets: { value: number; label: string }[] = [
-            { value: 0,   label: '0px   (Off / 关闭)' },
+            { value: 0,   label: '0px（关闭）' },
             { value: 2,   label: '2px' },
             { value: 5,   label: '5px' },
             { value: 10,  label: '10px' },
@@ -451,13 +451,13 @@ export class PickList {
             { value: 30,  label: '30px' },
             { value: 50,  label: '50px' },
             { value: 80,  label: '80px' },
-            { value: 100, label: '100px (Max / 最大)' },
+            { value: 100, label: '100px（最大）' },
         ];
         this.showSliderPicker(
             'blur',
             this.blur,
             presets,
-            'Background Blur / 背景模糊度（←→ 预览，Enter 确认，ESC 还原）'
+            '背景模糊度（←→ 预览，回车确认，Esc 还原）'
         );
     }
 
@@ -483,7 +483,7 @@ export class PickList {
 
         const items: ImgItem[] = presets.map((p) => ({
             label: p.label,
-            description: p.value === originalValue ? '$(check) current / 当前' : '',
+            description: p.value === originalValue ? '$(check) 当前' : '',
             detail: this.renderSliderBar(p.value, presets[presets.length - 1].value),
             imageType: 0,
             path: String(p.value),
@@ -561,20 +561,20 @@ export class PickList {
 
         switch (type) {
             case InputType.Path:
-                placeString = 'Please enter the image file or folder path';
+                placeString = '输入图片或目录路径';
                 promptString = '输入图片或目录路径：支持 ~ / ${ENV} 变量，目录会随机取一张图片';
                 break;
             case InputType.Opacity:
-                placeString = 'Opacity ranges：0.00 - 1,current:(' + this.opacity + ')';
+                placeString = '输入不透明度：0 - 0.8，当前 (' + this.opacity + ')';
                 promptString = '设置图片不透明度：0 - 0.8,当前值：' + this.opacity;
                 break;
             case InputType.Blur:
-                placeString = 'Set image blur: 0-100,current:(' + this.blur + ')';
+                placeString = '输入模糊度：0 - 100，当前 (' + this.blur + ')';
                 promptString = '设置图片模糊度：0 - 100,当前值：' + this.blur;
                 break;
             case InputType.AutoRandomSettings:
-                placeString = 'Auto update current:(' + this.config.get('autoInterval', 0) + ')';
-                promptString = '设置自动更换间隔(秒)，0表示关闭自动定时更换 / Set interval (0 to disable)';
+                placeString = '输入自动更换间隔（秒），当前 (' + this.config.get('autoInterval', 0) + ')';
+                promptString = '设置自动更换间隔（秒），0 表示关闭自动定时更换';
                 break;
         }
 
@@ -587,7 +587,7 @@ export class PickList {
 
         let value = await window.showInputBox(option);
         if (!value) {
-            window.showWarningMessage('Please enter configuration parameters / 请输入配置参数！');
+            window.showWarningMessage('请输入配置参数！');
             return false;
         }
 
@@ -596,25 +596,25 @@ export class PickList {
             const folderPicked = pickRandomFromFolder(value, PickList.getScanDepth());
             if (folderPicked) { value = folderPicked; }
             if (!fs.existsSync(path.resolve(value))) {
-                window.showWarningMessage('No access to the file or the file does not exist! / 无权限访问文件或文件不存在！');
+                window.showWarningMessage('无权限访问文件或文件不存在！');
                 return false;
             }
         } else if (type === InputType.Opacity) {
             const isOpacity = parseFloat(value);
             if (isOpacity < 0 || isOpacity > 0.8 || isNaN(isOpacity)) {
-                window.showWarningMessage('Opacity ranges in：0 - 0.8！');
+                window.showWarningMessage('不透明度范围：0 - 0.8！');
                 return false;
             }
         } else if (type === InputType.Blur) {
             const blur = parseFloat(value);
             if (blur < 0 || blur > 100 || isNaN(blur)) {
-                window.showWarningMessage('Blur ranges in：0 - 100！');
+                window.showWarningMessage('模糊度范围：0 - 100！');
                 return false;
             }
         } else if (type === InputType.AutoRandomSettings) {
             const interval = parseInt(value);
             if (interval < 0 || isNaN(interval)) {
-                window.showWarningMessage('Interval must be >= 0!');
+                window.showWarningMessage('间隔必须 ≥ 0！');
                 return false;
             }
         }
@@ -629,7 +629,7 @@ export class PickList {
             const interval = parseInt(value);
             if (interval > 0) {
                 if (!getActivePlaylistFolder(this.config)) {
-                    window.showWarningMessage('Please add a directory first! / 请先添加目录！');
+                    window.showWarningMessage('请先添加目录！');
                     return false;
                 }
                 await this.setConfigValue('autoInterval', interval, false);
@@ -643,7 +643,7 @@ export class PickList {
     }
 
     private async setSizeModel(value?: string) {
-        if (!value) { return vsHelp.showInfo('No parameter value was obtained / 未获取到参数值'); }
+        if (!value) { return vsHelp.showInfo('未获取到参数值'); }
         await this.setConfigValue('sizeModel', value, true);
     }
 
@@ -653,7 +653,7 @@ export class PickList {
         options: UpdateBackgroundOptions = {}
     ) {
         if (!path) { path = resolveCurrentImagePath(this.config.get<string>('imagePath') || ''); }
-        if (!path) { return vsHelp.showInfo('Unfetched Picture Path / 未获取到图片路径'); }
+        if (!path) { return vsHelp.showInfo('未获取到图片路径'); }
 
         // Large local-file pre-check: warn user before applying anything > 5MB so
         // they don't get blindsided by a multi-second freeze on manual switch.
@@ -679,10 +679,10 @@ export class PickList {
             if (sizeMB <= 5) { return true; }
             const sizeLabel = `${sizeMB.toFixed(1)}MB`;
             const choice = await window.showWarningMessage(
-                `图片体积较大 (${sizeLabel})，应用时可能会出现短暂卡顿。是否继续？ / Large image (${sizeLabel}) may cause a brief stutter. Continue?`,
-                'Continue / 继续', 'Cancel / 取消'
+                `图片体积较大（${sizeLabel}），应用时可能出现短暂卡顿，是否继续？`,
+                '继续', '取消'
             );
-            return choice === 'Continue / 继续';
+            return choice === '继续';
         } catch (e) {
             console.warn('[BackgroundCover] confirmLargeLocalImage failed:', e);
             return true;
@@ -692,12 +692,12 @@ export class PickList {
     private async openFieldDialog(type: number) {
         const isFolders = type === 1 ? false : true;
         const isFiles = type === 2 ? false : true;
-        const filters = type === 1 ? { 'Images': ['png', 'jpg', 'gif', 'jpeg', 'jfif', 'webp', 'bmp', 'mp4', 'webm', 'ogg', 'mov'] } : undefined;
+        const filters = type === 1 ? { '图片': ['png', 'jpg', 'gif', 'jpeg', 'jfif', 'webp', 'bmp', 'mp4', 'webm', 'ogg', 'mov'] } : undefined;
         const folderUris = await window.showOpenDialog({
             canSelectFolders: isFolders,
             canSelectFiles: isFiles,
             canSelectMany: false,
-            openLabel: 'Select folder',
+            openLabel: '选择目录',
             filters: filters
         });
         if (!folderUris) { return false; }
@@ -815,7 +815,7 @@ export class PickList {
                     setTimeout(() => {
                         triggerMsg.dispose();
                         if (didChangeAssets) {
-                            window.setStatusBarMessage('Background updated successfully! / 背景更新成功！', 5000);
+                            window.setStatusBarMessage('背景更新成功！', 5000);
                         }
                     }, 1000);
 
@@ -823,16 +823,16 @@ export class PickList {
                 }
 
                 if (this.quickPick) {
-                    this.quickPick.placeholder = 'Reloading takes effect? / 重新加载生效？';
+                    this.quickPick.placeholder = '重新加载生效？';
                     this.quickPick.items = [
-                        { label: '$(check) YES', detail: '立即重新加载窗口生效', imageType: ActionType.ReloadWindow },
-                        { label: '$(x) NO', detail: '稍后手动重启', imageType: ActionType.CloseMenu }
+                        { label: '$(check) 是', detail: '立即重新加载窗口生效', imageType: ActionType.ReloadWindow },
+                        { label: '$(x) 否', detail: '稍后手动重启', imageType: ActionType.CloseMenu }
                     ];
                     this.quickPick.ignoreFocusOut = true;
                     this.quickPick.show();
                 } else {
                     if (this.randUpdate) {
-                        window.showInformationMessage(`背景将在1秒后自动更新！ / The background will be automatically updated in 1 second!`);
+                        window.showInformationMessage('背景将在 1 秒后自动更新！');
                         await new Promise((resolve) => setTimeout(resolve, 1000));
                         await commands.executeCommand('workbench.action.reloadWindow');
                     }

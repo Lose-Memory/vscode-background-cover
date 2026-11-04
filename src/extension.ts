@@ -33,7 +33,7 @@ export function activate(context: ExtensionContext) {
 	let backImgBtn = window.createStatusBarItem(StatusBarAlignment.Right, -999);
 	backImgBtn.text = '$(file-media)';
 	backImgBtn.command = 'extension.backgroundCover.showMenu';
-	backImgBtn.tooltip = 'Switch background image / 切换背景图';
+	backImgBtn.tooltip = '切换背景图';
 	backImgBtn.show();
 	context.subscriptions.push(backImgBtn);
 
@@ -60,11 +60,11 @@ export function activate(context: ExtensionContext) {
 				const ex: Extension<any> | undefined = extensions.getExtension('manasxx.background-cover');
 				const extensionVersion: string = ex ? ex.packageJSON['version'] : '';
 				window.showInformationMessage(
-					`BackgroundCover ${extensionVersion || ''}：检测到背景补丁缺失或版本过旧，需要重新应用。是否立即执行？ / BackgroundCover ${extensionVersion || ''}: Background patch is missing or outdated. Apply it now?`,
-					'Apply / 应用',
-					'Later / 稍后'
+					`BackgroundCover ${extensionVersion || ''}：检测到背景补丁缺失或版本过旧，需要重新应用。是否立即执行？`,
+					'应用',
+					'稍后'
 				).then(async result => {
-					if (result === 'Apply / 应用') {
+					if (result === '应用') {
 						const requiresReload = await PickList.applyCurrentBackground();
 						if (requiresReload) {
 							await promptRestartWindow();
@@ -211,12 +211,12 @@ async function checkVSCodeVersionChanged(context: ExtensionContext): Promise<boo
 	if (lastVSCodeVersion && lastVSCodeVersion !== vscodeVersion) {
 		// 弹出提示框确认是否更新背景
 		const value = await window.showInformationMessage(
-			`检测到 VS Code 已从 ${lastVSCodeVersion} 更新到 ${vscodeVersion}，背景补丁可能已被重置。是否重新应用并重载窗口？ / VS Code was updated from ${lastVSCodeVersion} to ${vscodeVersion}. Reapply the background patch and reload the window?`,
-			'Apply and Reload / 应用并重载',
-			'Later / 稍后'
+			`检测到 VS Code 已从 ${lastVSCodeVersion} 更新到 ${vscodeVersion}，背景补丁可能已被重置。是否重新应用并重载窗口？`,
+			'应用并重载',
+			'稍后'
 		);
 
-		if (value === 'Apply and Reload / 应用并重载') {
+		if (value === '应用并重载') {
 			// Update the stored version BEFORE any operation that might reload/close the window
 			await context.globalState.update('vscode_version', vscodeVersion);
 
@@ -230,7 +230,7 @@ async function checkVSCodeVersionChanged(context: ExtensionContext): Promise<boo
 				// to clear the main process cache and recompile the patched file.
 				await promptRestartWindow();
 			} else {
-				window.setStatusBarMessage('Background already applied. / 背景已应用。', 5000);
+				window.setStatusBarMessage('背景已应用。', 5000);
 			}
 		} else {
 			// User chose "Later / 稍后" — still update the version so we don't prompt again
@@ -264,11 +264,11 @@ async function seedCurrentImageFromRenderedCss(): Promise<void> {
 
 async function promptRestartWindow(): Promise<void> {
 	const value = await window.showInformationMessage(
-		'背景补丁已应用，但需要完全关闭并重新打开 VS Code 才能生效（软重载不会清除编译缓存）。是否现在退出？ / Background patch applied. You must fully quit and restart VS Code for it to take effect (soft reload won\'t clear the compilation cache). Quit now?',
-		'Quit / 退出',
-		'Later / 稍后'
+		'背景补丁已应用，但需要完全关闭并重新打开 VS Code 才能生效（软重载不会清除编译缓存）。是否现在退出？',
+		'退出',
+		'稍后'
 	);
-	if (value === 'Quit / 退出') {
+	if (value === '退出') {
 		await commands.executeCommand('workbench.action.quit');
 	}
 }

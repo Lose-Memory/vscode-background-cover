@@ -113,12 +113,10 @@ export const thumbMisses = reactive<Record<string, true>>({});
 
 export interface StudioBrand {
     logo: string;
-    name: string;
 }
 
 export const brand = reactive<StudioBrand>({
-    logo: '',
-    name: ''
+    logo: ''
 });
 
 /**
@@ -157,5 +155,4 @@ export function applyState(data: any) {
     if (data.config) { assignClean('config', config, data.config); }
     if (data.state)  { assignClean('state', state, data.state); }
     if (typeof data.brandLogo === 'string') { brand.logo = data.brandLogo; }
-    if (typeof data.brandName === 'string') { brand.name = data.brandName; }
 }

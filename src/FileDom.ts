@@ -240,7 +240,7 @@ function quoteShellPath(filePath: string): string {
 
 async function unlockDir(dirPath: string): Promise<void> {
     window.setStatusBarMessage(
-        '正在开放背景文件目录写入权限，请在弹出的授权窗口中确认一次。 / Granting write access to the background folder. Please confirm the permission prompt once.',
+        '正在开放背景文件目录写入权限，请在弹出的授权窗口中确认一次。',
         15000
     );
     const systemType = os.type();
@@ -552,7 +552,7 @@ export class FileDom {
     public async install(): Promise<boolean> {
         if (!(await this.checkFileExists())) {
             if (this.silent) {
-                throw new BackgroundPatchError('Workbench file is missing');
+                throw new BackgroundPatchError('找不到 VS Code 核心文件');
             }
             return false;
         }
@@ -606,7 +606,7 @@ export class FileDom {
         const bakExist = await fse.pathExists(BAK_FILE_PATH);
         if (!bakExist) {
             this.bakStatus = true;
-            window.setStatusBarMessage(`首次使用正在获取权限及备份文件，处理中... / First use is getting permission and backing up files, processing...`, 10000);
+            window.setStatusBarMessage(`首次使用正在获取权限及备份文件，处理中...`, 10000);
         }
     }
 
@@ -648,14 +648,14 @@ export class FileDom {
                 if (this.silent) {
                     throw new BackgroundPatchError(String(e));
                 }
-                window.showErrorMessage('Failed to write background assets: ' + e);
+                window.showErrorMessage('写入背景资源失败：' + e);
                 return false;
             }
 
             const content = this.getJs().trim();
             if (!content) {
                 if (this.silent) {
-                    throw new BackgroundPatchError('Generated patch content is empty');
+                    throw new BackgroundPatchError('生成的补丁内容为空');
                 }
                 return false;
             }
@@ -667,7 +667,7 @@ export class FileDom {
             const mainResult = await this.patchOneJsFile(this.filePath, BAK_FILE_PATH, content, true);
             if (mainResult === 'failed') {
                 if (this.silent) {
-                    throw new BackgroundPatchError('Failed to patch workbench file');
+                    throw new BackgroundPatchError('写入 workbench 文件失败');
                 }
                 return false;
             }
@@ -705,7 +705,7 @@ export class FileDom {
                     throw error;
                 }
                 console.error('[FileDom] applyPatch error (silent):', error);
-                throw new BackgroundPatchError((error && (error.message || error.toString())) || 'Failed to install background patch');
+                throw new BackgroundPatchError((error && (error.message || error.toString())) || '安装背景补丁失败');
             }
             await this.handlePatchError(error);
             return false;
@@ -743,7 +743,7 @@ export class FileDom {
      * and offer the user contextual recovery actions instead of a flat message.
      */
     private async handlePatchError(error: any): Promise<void> {
-        const rawMsg: string = (error && (error.message || error.toString())) || 'Unknown error';
+        const rawMsg: string = (error && (error.message || error.toString())) || '未知错误';
         const code: string = (error && error.code) ? String(error.code) : '';
         const lower = (rawMsg + ' ' + code).toLowerCase();
 
@@ -758,24 +758,30 @@ export class FileDom {
         }
 
         const intro: Record<Kind, string> = {
-            permission: '权限不足：写入 VSCode 核心文件失败。请尝试以管理员身份重新打开 VSCode，或关闭其他正在写入该文件的进程。 / Permission denied while patching VSCode core file.',
-            locked:     '文件被占用：另一个 VSCode 实例可能正在写入相同文件。请关闭其他窗口后重试。 / The workbench file is locked by another process.',
-            missing:    '未找到 VSCode 核心文件：可能在你升级 / 修复 VSCode 后路径已变化。 / Required VSCode core file is missing.',
-            unknown:    '安装补丁失败 / Failed to install background patch.'
+            permission: '权限不足：写入 VSCode 核心文件失败。请尝试以管理员身份重新打开 VSCode，或关闭其他正在写入该文件的进程。',
+            locked:     '文件被占用：另一个 VSCode 实例可能正在写入相同文件。请关闭其他窗口后重试。',
+            missing:    '未找到 VSCode 核心文件：可能在你升级 / 修复 VSCode 后路径已变化。',
+            unknown:    '安装补丁失败。'
+        };
+        const kindLabel: Record<Kind, string> = {
+            permission: '权限',
+            locked:     '占用',
+            missing:    '文件缺失',
+            unknown:    '未知'
         };
 
-        const buttons: string[] = ['Retry / 重试'];
+        const buttons: string[] = ['重试'];
         if (kind === 'permission' && this.systemType === SystemType.WINDOWS) {
-            buttons.push('Reopen as Admin / 以管理员身份重开');
+            buttons.push('以管理员身份重开');
         }
-        buttons.push('Open Log / 查看日志');
+        buttons.push('查看日志');
 
-        const detail = `${intro[kind]}\n\n[${kind.toUpperCase()}] ${rawMsg}`;
+        const detail = `${intro[kind]}\n\n[${kindLabel[kind]}] ${rawMsg}`;
         console.error('[FileDom] applyPatch error:', error);
 
         const choice = await window.showErrorMessage(detail, ...buttons);
         if (!choice) { return; }
-        if (choice === 'Retry / 重试') {
+        if (choice === '重试') {
             // Re-attempt without recursion blowing the stack; small delay so any
             // transient lock has a chance to clear. Restart image preprocessing
             // so a previous failed download is not reused.
@@ -786,15 +792,15 @@ export class FileDom {
             setTimeout(() => { void this.applyPatch(); }, 300);
             return;
         }
-        if (choice === 'Reopen as Admin / 以管理员身份重开') {
+        if (choice === '以管理员身份重开') {
             await window.showInformationMessage(
-                '请手动关闭当前 VSCode 窗口，然后右键 VSCode 图标 → "以管理员身份运行"。 / Close VSCode, then right-click its icon and choose "Run as administrator".',
+                '请手动关闭当前 VSCode 窗口，然后右键 VSCode 图标 → "以管理员身份运行"。',
                 { modal: true },
-                'OK'
+                '知道了'
             );
             return;
         }
-        if (choice === 'Open Log / 查看日志') {
+        if (choice === '查看日志') {
             try {
                 await commands.executeCommand('workbench.action.toggleDevTools');
             } catch (e) {

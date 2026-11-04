@@ -2,7 +2,7 @@
     "name": "background-cover",
     "displayName": "background-cover",
     "description": "Add a picture you like to cover the entire vscode background (Hot Reload Supported). / 添加你喜欢的图片覆盖整个vscode背景（支持热更新）",
-    "version": "3.10.0",
+    "version": "3.10.1",
     "publisher": "manasxx",
     "engines": {
         "vscode": "^1.38.0"
@@ -33,11 +33,11 @@
         "commands": [
             {
                 "command": "extension.backgroundCover.start",
-                "title": "backgroundCover - start"
+                "title": "打开面板"
             },
             {
                 "command": "extension.backgroundCover.refresh",
-                "title": "backgroundCover - refresh"
+                "title": "刷新背景"
             },
             {
                 "command": "backgroundCover.refreshEntry",
@@ -60,31 +60,31 @@
             }
         ],
         "configuration": {
-            "title": "background-cover config",
+            "title": "背景封面设置",
             "properties": {
                 "backgroundCover.opacity": {
                     "type": "number",
                     "maximum": 0.8,
                     "minimum": 0,
                     "default": 0.2,
-                    "description": "Background opacity (0 - 0.8) / 背景透明度(0 - 0.8)"
+                    "description": "背景透明度（0 - 0.8）"
                 },
                 "backgroundCover.blur": {
                     "type": "number",
                     "maximum": 100,
                     "minimum": 0,
                     "default": 0,
-                    "description": "Background blur (0 - 100) / 背景模糊(0 - 100)"
+                    "description": "背景模糊（0 - 100）"
                 },
                 "backgroundCover.imagePath": {
                     "type": "string",
                     "default": "",
-                    "description": "Background image path / 背景图片路径"
+                    "description": "背景图片路径"
                 },
                 "backgroundCover.perWindowBackground": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Let each window keep its own background image. Turn this off to share one background across all windows (legacy behavior). / 每个窗口使用各自的背景图；关闭后所有窗口共用同一张背景图（旧版行为）"
+                    "description": "每个窗口使用各自的背景图；关闭后所有窗口共用同一张背景图（旧版行为）"
                 },
                 "backgroundCover.activePlaylist": {
                     "type": "string",
@@ -93,64 +93,64 @@
                         "2"
                     ],
                     "default": "1",
-                    "markdownDescription": "当前使用的播放列表：随机换图、图库与目录扫描都用它的目录，其余设置两个列表共用。<br>**Playlist** — which list drives random rotation, the gallery and folder scanning; every other setting is shared."
+                    "markdownDescription": "当前使用的播放列表：随机换图、图库与目录扫描都用它的目录，其余设置两个列表共用。"
                 },
                 "backgroundCover.playlist1Folder": {
                     "type": "string",
                     "default": "",
-                    "description": "Playlist 1 folder, scanned recursively / 播放列表 1 的目录（递归扫描子目录）"
+                    "description": "播放列表 1 的目录（递归扫描子目录）"
                 },
                 "backgroundCover.playlist2Folder": {
                     "type": "string",
                     "default": "",
-                    "description": "Playlist 2 folder, scanned recursively / 播放列表 2 的目录（递归扫描子目录）"
+                    "description": "播放列表 2 的目录（递归扫描子目录）"
                 },
                 "backgroundCover.randomImageFolder": {
                     "type": "string",
                     "default": "",
-                    "deprecationMessage": "已迁移到 backgroundCover.playlist1Folder / Migrated to backgroundCover.playlist1Folder",
-                    "description": "Deprecated: playlist 1 folder (migrated automatically on startup) / 已弃用：播放列表 1 的目录（启动时自动迁移）"
+                    "deprecationMessage": "已迁移到 backgroundCover.playlist1Folder",
+                    "description": "已弃用：播放列表 1 的目录（启动时自动迁移）"
                 },
                 "backgroundCover.folderScanDepth": {
                     "type": "number",
                     "default": 3,
                     "minimum": 0,
                     "maximum": 10,
-                    "description": "How many levels of sub-directories to scan for images (0 = current folder only, default 3) / 扫描子目录的层数（0 = 只看当前目录，默认 3 层）"
+                    "description": "扫描子目录的层数（0 = 只看当前目录，默认 3 层）"
                 },
                 "backgroundCover.aspectThreshold": {
                     "type": "number",
                     "default": 1.3,
                     "minimum": 0.1,
                     "maximum": 10,
-                    "description": "Portrait threshold: images with width/height below this value are treated as portrait (used by the aspect filter and the vertical position) / 竖图阈值：宽高比小于该值的图视为竖图（比例筛选与纵向取景共用）"
+                    "description": "竖图阈值：宽高比小于该值的图视为竖图（比例筛选与纵向取景共用）"
                 },
                 "backgroundCover.aspectFilterEnabled": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Only pick images whose aspect ratio is >= the portrait threshold when changing the background randomly; the gallery still lists every image / 随机换图时只挑选宽高比 ≥ 竖图阈值的图片；图库仍显示全部"
+                    "description": "随机换图时只挑选宽高比 ≥ 竖图阈值的图片；图库仍显示全部"
                 },
                 "backgroundCover.portraitVerticalPosition": {
                     "type": "number",
                     "default": 50,
                     "minimum": 0,
                     "maximum": 100,
-                    "description": "Vertical framing for portrait images in cover mode (0 = top, 50 = center, 100 = bottom) / 竖图纵向取景位置（0 = 顶部，50 = 居中，100 = 底部）"
+                    "description": "竖图纵向取景位置（0 = 顶部，50 = 居中，100 = 底部）"
                 },
                 "backgroundCover.autoStatus": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Automatically change background each time you start / 每次启动时随机自动更换背景"
+                    "description": "每次启动时随机自动更换背景"
                 },
                 "backgroundCover.autoInterval": {
                     "type": "number",
                     "default": 10,
-                    "description": "Automatically change background interval in seconds / 自动更换背景的时间间隔（秒）"
+                    "description": "自动更换背景的时间间隔（秒）"
                 },
                 "backgroundCover.autoRandomOnStartup": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Pick a new random image when the window starts (independent of the timed auto refresh) / 启动窗口时随机换一张新图（与定时自动换图互不影响）"
+                    "description": "启动窗口时随机换一张新图（与定时自动换图互不影响）"
                 },
                 "backgroundCover.sizeModel": {
                     "type": "string",
@@ -168,7 +168,7 @@
                         "not_bottom"
                     ],
                     "default": "cover",
-                    "description": "Background image size adaptive mode / 图片尺寸适应模式"
+                    "description": "图片尺寸适应模式"
                 },
                 "backgroundCover.blendModel": {
                     "type": "string",
@@ -178,7 +178,7 @@
                         "lighten"
                     ],
                     "default": "auto",
-                    "description": "Background image blend mode / 图片文字混合模式，对应主题模式"
+                    "description": "图片文字混合模式，对应主题模式"
                 }
             }
         },
@@ -186,7 +186,7 @@
             "activitybar": [
                 {
                     "id": "backgroundCover-explorer",
-                    "title": "backgroundCover",
+                    "title": "背景封面",
                     "icon": "resources/big.svg"
                 }
             ]
@@ -196,7 +196,7 @@
                 {
                     "id": "backgroundCover.studio",
                     "type": "webview",
-                    "name": "Studio",
+                    "name": "工作室",
                     "when": "backgroundCover.mode == 'menu'"
                 }
             ]

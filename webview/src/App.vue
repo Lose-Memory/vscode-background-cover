@@ -3,10 +3,10 @@
         <header class="studio-header">
             <div class="brand">
                 <span class="brand-icon">
-                    <img v-if="brand.logo" :src="brand.logo" :alt="brand.name || t('logoAlt')" />
+                    <img v-if="brand.logo" :src="brand.logo" :alt="t('logoAlt')" />
                     <el-icon v-else><Picture /></el-icon>
                 </span>
-                <span class="brand-title">{{ brand.name || t('appTitle') }}</span>
+                <span class="brand-title">{{ t('appTitle') }}</span>
             </div>
             <div class="header-actions">
                 <el-dropdown trigger="click" :popper-class="dropdownPopperClass" @command="onUiThemeChange">
@@ -21,22 +21,6 @@
                             </el-dropdown-item>
                             <el-dropdown-item command="overwatch" :disabled="uiTheme === 'overwatch'">
                                 {{ t('themeOverwatch') }}
-                            </el-dropdown-item>
-                        </el-dropdown-menu>
-                    </template>
-                </el-dropdown>
-                <el-dropdown trigger="click" :popper-class="dropdownPopperClass" @command="onLangChange">
-                    <el-button text size="small" :title="t('language')">
-                        <el-icon><Place /></el-icon>
-                        <span class="lang-label">{{ locale === 'zh' ? '中' : 'EN' }}</span>
-                    </el-button>
-                    <template #dropdown>
-                        <el-dropdown-menu>
-                            <el-dropdown-item command="en" :disabled="locale === 'en'">
-                                {{ t('langEnglish') }}
-                            </el-dropdown-item>
-                            <el-dropdown-item command="zh" :disabled="locale === 'zh'">
-                                {{ t('langChinese') }}
                             </el-dropdown-item>
                         </el-dropdown-menu>
                     </template>
@@ -82,16 +66,16 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue';
-import { Picture, Refresh, House, Folder, Setting, Place, Brush } from '@element-plus/icons-vue';
+import { Picture, Refresh, House, Folder, Setting, Brush } from '@element-plus/icons-vue';
 import HomeTab from './views/HomeTab.vue';
 import LocalGalleryTab from './views/LocalGalleryTab.vue';
 import AdvancedTab from './views/AdvancedTab.vue';
 import { useTheme } from './composables/useTheme';
 import { useBridge } from './composables/useBridge';
-import { useI18n, setLocale, type Locale } from './composables/useI18n';
+import { useI18n } from './composables/useI18n';
 import { applyState, brand, thumbs, thumbMisses } from './composables/useStore';
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
 const bridge = useBridge();
 const theme = useTheme();
 type StudioUiTheme = 'default' | 'overwatch';
@@ -102,12 +86,10 @@ type StudioUiTheme = 'default' | 'overwatch';
  */
 interface UiPrefs {
     uiTheme?: StudioUiTheme;
-    locale?: Locale;
     activeTab?: string;
 }
 const LEGACY_KEYS: Record<keyof UiPrefs, string> = {
     uiTheme: 'bgc.uiTheme',
-    locale: 'bgc.locale',
     activeTab: 'bgc.activeTab'
 };
 
@@ -140,18 +122,6 @@ function onUiThemeChange(value: StudioUiTheme) {
     bridge.patchState({ uiTheme: uiTheme.value });
 }
 
-const userLocaleOverride = ref<Locale | null>(
-    prefs.locale === 'zh' || prefs.locale === 'en' ? prefs.locale : null
-);
-if (userLocaleOverride.value) { setLocale(userLocaleOverride.value); }
-
-function onLangChange(value: Locale) {
-    userLocaleOverride.value = value;
-    setLocale(value);
-    bridge.patchState({ locale: value });
-    bridge.post({ type: 'setGlobalState', key: 'backgroundCoverLocale', value });
-}
-
 const tabs = computed(() => [
     { key: 'home',       label: t('tabHome'),       icon: House },
     { key: 'local',      label: t('tabLocal'),      icon: Folder },
@@ -174,9 +144,7 @@ watch(active, (value) => {
 });
 
 bridge.on('state', (data: any) => {
-    const payload = data?.data ?? {};
-    if (payload.locale && !userLocaleOverride.value) { setLocale(payload.locale); }
-    applyState(payload);
+    applyState(data?.data ?? {});
 });
 
 bridge.on('thumbnails', (data: any) => {
@@ -363,14 +331,7 @@ onMounted(() => {
     flex-shrink: 0;
 }
 
-.lang-label {
-    font-size: 11px;
-    margin-left: 2px;
-    color: var(--vscode-foreground);
-}
-
-.theme-label,
-.lang-label {
+.theme-label {
     max-width: 54px;
     overflow: hidden;
     text-overflow: ellipsis;
