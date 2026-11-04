@@ -12,7 +12,7 @@ import { isVideoFile } from './pathUtil';
 
 const THUMB_WIDTH = 160;
 const THUMB_QUALITY = 72;
-const MAX_CONCURRENCY = 3;
+const MAX_CONCURRENCY = 6;
 const PRUNE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 type SharpFactory = (input: string, options?: Record<string, unknown>) => any;

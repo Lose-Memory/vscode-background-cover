@@ -253,10 +253,21 @@ export class StudioViewProvider implements WebviewViewProvider {
                     ? msg.paths.filter((p: unknown): p is string => typeof p === 'string' && p.length > 0)
                     : [];
                 const items: Array<{ path: string; display: string }> = [];
-                for (const p of paths.slice(0, 60)) {
-                    const thumb = await getThumbnail(p);
-                    items.push({ path: p, display: thumb ? this.toWebviewUri(thumb) : '' });
-                }
+                const queue = paths.slice(0, 60);
+                // 并行生成：一张大图解码要 100~800ms，串行时一整页要几十秒，图库就像加载不出来。
+                const THUMB_CONCURRENCY = 6;
+                let cursor = 0;
+                const worker = async (): Promise<void> => {
+                    while (cursor < queue.length) {
+                        const p = queue[cursor];
+                        cursor += 1;
+                        const thumb = await getThumbnail(p);
+                        items.push({ path: p, display: thumb ? this.toWebviewUri(thumb) : '' });
+                    }
+                };
+                await Promise.all(
+                    Array.from({ length: Math.min(THUMB_CONCURRENCY, queue.length) }, () => worker())
+                );
                 if (items.length && this.view) {
                     await this.view.webview.postMessage({ type: 'thumbnails', items });
                 }

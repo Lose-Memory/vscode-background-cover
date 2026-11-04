@@ -115,7 +115,7 @@
                             @mouseleave="onHover($event, false)"
                         />
                         <img v-else-if="thumbSrc(img)" :src="thumbSrc(img)" :alt="img.name" loading="lazy" />
-                        <div v-else class="thumb-fallback">
+                        <div v-else class="thumb-fallback" :class="{ 'is-pending': isThumbPending(img.path) }">
                             <el-icon><Picture /></el-icon>
                         </div>
                         <div v-if="isVideoPath(img.path)" class="thumb-kind">
@@ -163,7 +163,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { ArrowDown, ArrowUp, Plus, FolderOpened, Picture, Check, VideoCamera, DataAnalysis } from '@element-plus/icons-vue';
 import { useI18n } from '../composables/useI18n';
 import { useBridge } from '../composables/useBridge';
@@ -215,7 +215,12 @@ function thumbSrc(img: { path: string; display: string }): string {
     return thumbs[img.path] || (thumbMisses[img.path] ? img.display : '');
 }
 
-const requestedThumbs = new Set<string>();
+/** 已请求但还没回来的缩略图：显示成脉动的骨架，而不是「没有这张图」。 */
+function isThumbPending(p: string): boolean {
+    return requestedThumbs.has(p) && !thumbs[p] && !thumbMisses[p];
+}
+
+const requestedThumbs = reactive(new Set<string>());
 const pendingThumbPaths = computed(() => {
     const out: string[] = [];
     const push = (p: string) => {
@@ -231,6 +236,12 @@ watch(pendingThumbPaths, (paths) => {
     if (!batch.length) { return; }
     batch.forEach(p => requestedThumbs.add(p));
     bridge.post({ type: 'thumbnailsRequest', paths: batch });
+    // 万一消息丢了，20 秒后允许重试，否则这些格子会一直空着
+    window.setTimeout(() => {
+        batch.forEach(p => {
+            if (!thumbs[p] && !thumbMisses[p]) { requestedThumbs.delete(p); }
+        });
+    }, 20000);
 }, { immediate: true, flush: 'post' });
 
 /* ---------- 目录扫描：统计目录内每张图的长宽比 ---------- */
@@ -441,6 +452,16 @@ function onHover(ev: Event, entering: boolean) {
     aspect-ratio: 16 / 10;
     color: var(--vscode-descriptionForeground);
     font-size: 20px;
+}
+
+/* 缩略图还在生成：脉动一下，别让用户以为这些图不存在 */
+.thumb-fallback.is-pending {
+    animation: thumb-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes thumb-pulse {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 0.85; }
 }
 
 .thumb-name {
