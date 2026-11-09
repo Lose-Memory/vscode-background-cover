@@ -14,9 +14,9 @@ import { expandPathVariables, hasFileExtension, isVideoFile, pickRandomFromFolde
 import {
     getCorruptionWarningCss,
     getTransitionDeclaration,
+    getWallpaperBehindCss,
     getTransitionReducedMotionCss,
     resolveBlendModeDeclaration,
-    resolveBlendModeValue,
     resolveThemeBlendRules
 } from './backgroundCss';
 import { IMAGE_FADE_JS, PRELOAD_IMAGE_JS } from './loaderFragments';
@@ -456,7 +456,7 @@ export class FileDom {
         this.filePath = JS_FILE_PATH;
         this.imagePath = imagePath;
         this.sourceImagePath = imagePath;
-        this.imageOpacity = Math.min(opacity, 0.8);
+        this.imageOpacity = Math.min(opacity, 1);
         this.sizeModel = sizeModel || "cover";
         this.blur = blur;
         this.blendModel = blendModel || this.workConfig.get('blendModel', '');
@@ -1364,7 +1364,7 @@ export class FileDom {
 
     // 获取css内容
     private getCss(): string {
-        const opacity = Math.min(this.imageOpacity, 0.8);
+        const opacity = Math.min(this.imageOpacity, 1);
         const { sizeModelVal, repeatVal, positionVal } = this.getCssStyles();
 
         let rawPath = this.imagePath;
@@ -1384,7 +1384,7 @@ export class FileDom {
                 opacity: opacity,
                 blur: this.blur,
                 // A4: auto 模式注入 CSS 变量，主题切换由 :has() 即时适配
-                blendMode: resolveBlendModeValue(this.blendModel),
+                blendMode: 'normal',
                 // A6: 视频元素同样支持淡入淡出（loader 的 applyVideo 读取该字段）
                 transition: this.transitionEnabled
             };
@@ -1398,6 +1398,7 @@ export class FileDom {
             ${jsonConfig}
             /*background-cover-video-end*/
             ${resolveThemeBlendRules(this.blendModel)}
+            ${getWallpaperBehindCss()}
             ${getCorruptionWarningCss()}
             `;
         }
@@ -1415,13 +1416,14 @@ export class FileDom {
             background-position: ${positionVal};
             opacity:${opacity};
             background-image:url('${cssPath}');
-            z-index: 2;
+            z-index: 0;
             pointer-events: none;
             filter: blur(${this.blur}px);
             ${resolveBlendModeDeclaration(this.blendModel)}
             ${getTransitionDeclaration(this.transitionEnabled)}
         }
         ${resolveThemeBlendRules(this.blendModel)}
+        ${getWallpaperBehindCss()}
         ${getTransitionReducedMotionCss(this.transitionEnabled)}
         ${getCorruptionWarningCss()}
         `;
@@ -1463,7 +1465,7 @@ export class FileDom {
                         video.style.width = '100%';
                         video.style.height = '100%';
                         video.style.objectFit = 'cover';
-                        video.style.zIndex = '2';
+                        video.style.zIndex = '0';
                         video.style.pointerEvents = 'none';
                         doc.body.prepend(video);
                     }

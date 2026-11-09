@@ -183,7 +183,7 @@ onMounted(() => {
     height: 100%;
     width: 100%;
     overflow: hidden;
-    background: var(--vscode-sideBar-background);
+    background: transparent;
     background-image:
         var(--studio-page-grad-1),
         var(--studio-page-grad-2);

@@ -2,6 +2,14 @@
 
 * { box-sizing: border-box; }
 
+/* 主题声明了 color-scheme: dark 时，Chromium 会给画布刷一层深色底，
+   就算 html/body 都是透明也透不到壁纸。这里把画布交还给宿主。 */
+html,
+html.dark {
+    background: transparent;
+    color-scheme: normal;
+}
+
 html, body, #app {
     margin: 0;
     padding: 0;
@@ -11,7 +19,7 @@ html, body, #app {
     font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
     font-size: var(--bgc-font-md);
     color: var(--bgc-fg);
-    background: var(--bgc-bg);
+    background: transparent;
     -webkit-font-smoothing: antialiased;
 }
 

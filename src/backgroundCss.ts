@@ -111,6 +111,304 @@ export function resolveThemeBlendRules(mode: string): string {
     `;
 }
 
+// ---- 壁纸垫底：面板打透 + 浮层毛玻璃 ------------------------------------------
+/**
+ * 壁纸层垫到 `.monaco-workbench` 之下（壁纸 z-index 0，工作台自身 z-index 1），
+ * 文字与图像不再有任何合成的机会 —— 这是「文字就是文字」的唯一做法。
+ *
+ * 代价：主题给面板上的底色不会再被混合顶掉，必须真正打透，否则壁纸被黑底盖死。
+ * 打透走变量这一层，而不是逐元素刷 `background-color: transparent`：
+ * - 把 `--vscode-*-background` 这些「面」变量改成 transparent，凡是读它的组件
+ *   （包括带 !important 的 modern-ui 规则、内联 style）一起变透明，不会漏一个留一个黑块；
+ * - 列表选中 / 悬停这类「高亮」变量不动，交互反馈保留。
+ *
+ * 浮层（菜单、命令面板、补全、hover、对话框）不能只是透明：那样下面的文字会透上来
+ * 和浮层文字叠在一起。它们用毛玻璃 —— 半透明深底 + `backdrop-filter` 把下面的内容糊掉，
+ * 壁纸的色块还在，底下的字看不出来。
+ */
+
+/** 浮层毛玻璃的底色变量（深浅主题各一份）。 */
+export const OVERLAY_CSS_VAR = '--background-cover-overlay';
+
+/**
+ * 打透/毛玻璃所需的特异性前缀。modern-ui 的面板底色规则是 0,4,0 且带 !important，
+ * 兜底选择器要压过它就得抬到 0,4,x 以上；`body::before` 的打透兜底再抬一级到 0,6,x，
+ * 浮层规则与它同特异性并排在后面，靠顺序胜出。
+ */
+const WB = 'html body .monaco-workbench';
+const WB4 = `${WB}.monaco-workbench.monaco-workbench.monaco-workbench`;
+const WB5 = `${WB4}.monaco-workbench`;
+
+/** 需要打透的「面」主题色（点号转连字符后加 `--vscode-` 前缀）。 */
+const TRANSPARENT_COLOR_IDS: string[] = [
+    'editor.background',
+    'editorGutter.background',
+    'editorGroup.background',
+    'editorGroupHeader.tabsBackground',
+    'editorGroupHeader.noTabsBackground',
+    'editorGroup.emptyBackground',
+    'editorPane.background',
+    'sideBar.background',
+    'sideBarSectionHeader.background',
+    'activityBar.background',
+    'activityBar.inactiveBackground',
+    'titleBar.activeBackground',
+    'titleBar.inactiveBackground',
+    'statusBar.background',
+    'statusBar.noFolderBackground',
+    'panel.background',
+    'panelSectionHeader.background',
+    'tab.activeBackground',
+    'tab.inactiveBackground',
+    'tab.unfocusedActiveBackground',
+    'tab.unfocusedInactiveBackground',
+    'breadcrumb.background',
+    'terminal.background',
+    'debugToolBar.background',
+    'input.background',
+    'inputValidation.background',
+    'checkbox.background',
+    'dropdown.background',
+    'badge.background',
+    // 粘滞滚动标题（Markdown 等文件的粘性标题条）与代码块底色，同样不能留深底。
+    'editorStickyScroll.background',
+    'editorStickyScrollGutter.background',
+    'editorStickyScroll.shadow',
+    'textCodeBlock.background',
+    'textPreformat.background',
+    // 资源管理器/列表的「粘性祖先行」：滚动时钉在顶部的那几行，底色默认是
+    // var(--vscode-sideBarStickyScroll-background)（高对比主题下是纯黑）。
+    'sideBarStickyScroll.background',
+    // 菜单内部的 .monaco-scrollable-element 会刷 var(--vscode-menu-background)。
+    // 菜单本身已经改成「透明 + ::before 毛玻璃」，这里再叠一层半透明黑，
+    // 二级菜单就会比一级菜单多出一层 0.42 的深底，看起来更暗。
+    'menu.background'
+];
+
+/** 需要换成毛玻璃的浮层主题色（下拉/菜单/hover/补全/对话框/通知）。 */
+const OVERLAY_COLOR_IDS: string[] = [
+    'quickInput.background',
+    'widget.background',
+    'editorWidget.background',
+    'editorSuggestWidget.background',
+    'editorHoverWidget.background',
+    'peekViewEditor.background',
+    'peekViewResult.background',
+    'peekViewTitle.background',
+    'notifications.background',
+    'notificationCenterHeader.background',
+    'editorMarkerNavigation.background'
+];
+
+const toCssVar = (colorId: string) => `--vscode-${colorId.replace(/\./g, '-')}`;
+
+/** 浮层选择器：这些容器本体加毛玻璃。
+ *  菜单（.monaco-menu / .monaco-submenu）刻意不在这里：backdrop-filter 会让它成为
+ *  fixed 子元素的包含块，二级菜单的位置随之算错，还会被菜单的滚动容器裁掉。
+ *  菜单改用下面的 ::before 伪元素单独兜毛玻璃。 */
+const OVERLAY_SELECTORS = [
+    '.quick-input-widget',
+    '.monaco-dialog-box',
+    '.notification-toast',
+    '.monaco-editor .editor-widget',
+    '.monaco-hover',
+    '.monaco-editor .suggest-widget',
+    '.monaco-editor .find-widget',
+    '.monaco-editor .parameter-hints-widget',
+    '.monaco-editor .peekview-widget'
+];
+
+export function getWallpaperBehindCss(): string {
+    const transparentVars = TRANSPARENT_COLOR_IDS
+        .map((id) => `            ${toCssVar(id)}: transparent !important;`)
+        .join('\n');
+    const overlayVars = OVERLAY_COLOR_IDS
+        .map((id) => `            ${toCssVar(id)}: var(${OVERLAY_CSS_VAR}) !important;`)
+        .join('\n');
+    const overlaySelectors = OVERLAY_SELECTORS
+        .map((sel) => `${WB5} ${sel}`)
+        .join(',\n');
+
+    return `
+        /* 壁纸已经垫在工作台下面，任何混合都会让壁纸和文字颜色互相污染。 */
+        body::before { z-index: 0; mix-blend-mode: normal !important; }
+        body {
+            ${OVERLAY_CSS_VAR}: rgba(0, 0, 0, .42);
+        }
+        body:has(> .monaco-workbench.vs),
+        body:has(> .monaco-workbench.hc-light) {
+            ${OVERLAY_CSS_VAR}: rgba(255, 255, 255, .5);
+        }
+
+        /* 1) 变量层打透：面 → 透明，浮层 → 毛玻璃底。 */
+        .monaco-workbench {
+            --modern-ui-shell-background: transparent !important;
+            --vscode-modernUI-shellBackground: transparent !important;
+${transparentVars}
+${overlayVars}
+        }
+
+        /* 工作台根容器自己：modern-ui 的壳底色、以及主题给这一层写死的不透明底色，
+           都挂在根上。它不透明，下面面板打得再透也白搭——整张壁纸直接看不见。 */
+        ${WB4} {
+            background-color: transparent !important;
+        }
+
+        /* 2) 兜底：直接写死底色、不读变量的容器，再点一次名。 */
+        ${WB} .part.sidebar,
+        ${WB} .part.auxiliarybar,
+        ${WB} .part.panel,
+        ${WB} .part.editor,
+        ${WB} .part.activitybar,
+        ${WB} .part.statusbar,
+        ${WB} .part.titlebar,
+        ${WB} .part > .content,
+        ${WB} .part > .title,
+        ${WB} .monaco-pane-view .pane,
+        ${WB} .monaco-pane-view .pane > .pane-header,
+        ${WB} .monaco-editor .monaco-editor-background,
+        ${WB} .monaco-editor .margin,
+        ${WB} .monaco-breadcrumbs,
+        ${WB} .monaco-grid-view,
+        ${WB} .editor-container,
+        ${WB} .editor-group-container > .title .tabs-and-actions-container,
+        ${WB}.monaco-workbench .part.sidebar,
+        ${WB}.monaco-workbench .part.auxiliarybar,
+        ${WB}.monaco-workbench .part.panel,
+        ${WB}.monaco-workbench .part.editor,
+        ${WB}.monaco-workbench .part.activitybar,
+        ${WB}.monaco-workbench .part.statusbar,
+        ${WB}.monaco-workbench .part.titlebar,
+        /* 菜单、hover 整棵子树排除在外：这条兜底的选择器特异性很高（四个 :not 也算），
+           它们自己的底色/毛玻璃规则压不过它，留着就永远透明或永远没有模糊。 */
+        ${WB4} *:not(.monaco-editor):not(.monaco-editor *):not(.monaco-list-row):not(.monaco-list-row *):not(.monaco-menu):not(.monaco-menu *):not(.uri-icon):not(.monaco-hover):not(.monaco-hover *) {
+            background-color: transparent !important;
+        }
+
+        /* 缩略图是块 canvas，底色画在画布里；半透明才不会在壁纸上糊成一条黑带。 */
+        ${WB} .minimap {
+            opacity: .55 !important;
+        }
+
+        /* 列表的粘性祖先行是 .monaco-list-row，被上面那条兜底刻意放过，
+           于是它还留着主题的纯黑底，滚动时在顶部糊出几条黑带。
+           只打透还不够：下面滚上来的行会和它叠成「字压字」，所以整块做一次毛玻璃。 */
+        ${WB4} .monaco-tree-sticky-container,
+        ${WB4} .monaco-tree-sticky-row {
+            background-color: transparent !important;
+        }
+
+        ${WB4} .monaco-tree-sticky-container {
+            backdrop-filter: blur(14px) saturate(1.1);
+            -webkit-backdrop-filter: blur(14px) saturate(1.1);
+        }
+
+        /* 上面那条兜底会把滚动条滑块一起打透，这里补回来。 */
+        ${WB}.monaco-workbench .monaco-scrollable-element > .scrollbar > .slider {
+            background-color: var(--vscode-scrollbarSlider-background, rgba(128, 128, 128, .4)) !important;
+        }
+
+        /* 3) 浮层毛玻璃：壁纸色块透出来，下面的内容被糊掉，不会文字叠文字。 */
+        ${overlaySelectors} {
+            background-color: var(${OVERLAY_CSS_VAR}) !important;
+            backdrop-filter: blur(26px) saturate(1.1);
+            -webkit-backdrop-filter: blur(26px) saturate(1.1);
+        }
+
+        /* 浮层内部的列表容器同样要透，否则毛玻璃上会盖一层实心底。
+           只点列表容器，不点行 —— 行的选中/悬停高亮要留着。 */
+        ${WB} .monaco-editor .editor-widget,
+        ${WB} .monaco-editor .editor-widget .monaco-list,
+        ${WB} .monaco-editor .editor-widget .monaco-list-rows,
+        ${WB} .monaco-editor .monaco-hover-content,
+        ${WB} .monaco-editor .find-widget > .find-part,
+        ${WB} .monaco-editor .find-widget > .replace-part {
+            background-color: transparent !important;
+        }
+
+        /* 菜单（含二级菜单）与设置里的下拉列表：完全透明 + 毛玻璃。backdrop-filter
+           不能加在菜单本体上 —— 那会让它成为 fixed 子元素的包含块，二级菜单位置算错、
+           再被滚动容器裁掉。模糊交给 ::before 伪元素：它是菜单的子节点，不影响定位。 */
+        ${WB5} .monaco-menu,
+        ${WB5} .monaco-submenu,
+        ${WB5} .monaco-select-box-dropdown-container {
+            background-color: transparent !important;
+        }
+
+        ${WB5} .monaco-menu::before,
+        ${WB5} .monaco-submenu::before,
+        ${WB5} .monaco-select-box-dropdown-container::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            backdrop-filter: blur(26px) saturate(1.1);
+            -webkit-backdrop-filter: blur(26px) saturate(1.1);
+        }
+
+        /* 二级菜单是 .monaco-submenu 里再套一层 .monaco-menu，两层都命中上面的规则，
+           于是同一块背景被连续模糊两次、sat(1.1) 也叠两次，看起来比一级菜单更"沉"。
+           内层的::before 去掉，只留外层的模糊。 */
+        ${WB5} .monaco-submenu .monaco-menu::before {
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+        }
+
+        /* 设置页本身是一个 Monaco 编辑器，兜底规则刻意跳过 .monaco-editor 子树，
+           于是它既没有底色也没有模糊，设置项的正文直接和底下的画面叠在一起。
+           模糊必须加在 .settings-editor 这一层：编辑器内部的 .monaco-editor-background
+           是巨型滚动层，Chromium 不给它做 backdrop 采样，加了也看不出效果。 */
+        ${WB5} .settings-editor {
+            backdrop-filter: blur(26px) saturate(1.1);
+            -webkit-backdrop-filter: blur(26px) saturate(1.1);
+        }
+
+        /* 设置页里的输入框/下拉框/复选框：底色是内联样式 var(--vscode-settings-*)，
+           而那个变量在高对比主题下是纯黑，只能靠 !important 压掉。 */
+        ${WB5} .settings-editor .monaco-inputbox,
+        ${WB5} .settings-editor .monaco-select-box,
+        ${WB5} .settings-editor .monaco-custom-toggle {
+            background-color: transparent !important;
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
+        }
+
+        ${WB5} .settings-editor .monaco-inputbox > .ibwrapper > .input,
+        ${WB5} .settings-editor .monaco-select-box > option {
+            background-color: transparent !important;
+        }
+
+        /* 粘滞滚动标题：底色打透后补一层轻模糊，滚到标题底下的代码不会和标题糊在一起。 */
+        ${WB} .monaco-editor .sticky-widget {
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: none !important;
+        }
+
+        /* 按钮：高对比主题的 button.background 是纯黑，整个按钮就是一块黑板。
+           改成透明 + 轻模糊，用一圈细描边保住「这是个按钮」的观感。 */
+        ${WB5} .monaco-button,
+        ${WB5} .monaco-text-button {
+            background-color: transparent !important;
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22);
+        }
+
+        ${WB5} .monaco-button:hover,
+        ${WB5} .monaco-text-button:hover {
+            background-color: rgba(255, 255, 255, .16) !important;
+        }
+
+        /* 活动栏里的插件图标是 mask + background-color 画的，
+           上面那条兜底会把它一起打成透明（只剩悬停时的按钮底色）。 */
+        ${WB} .activitybar .action-label.uri-icon {
+            background-color: currentColor !important;
+        }
+    `;
+}
+
 // ---- 过渡动画 ----------------------------------------------------------------
 /**
  * 背景层过渡动画声明（放在 body::before 规则内部）。开关关闭时不输出。
