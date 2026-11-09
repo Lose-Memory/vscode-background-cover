@@ -75,6 +75,12 @@ export default {
     applyChanges:         '重启窗口生效',
     applyChangesHint:     '本部分功能修改后需重启窗口才能生效，修改完成后请点击下方按钮',
 
+    dataSection:          '数据存储',
+    dataDirLabel:         '数据目录',
+    dataDirHint:          '缩略图、单图取景位置、目录扫描结果都存在这里。默认在 VS Code 的扩展目录下，卸载扩展会一起删除；换到自己的文件夹后，卸载不会动这些数据（只存本插件自己的数据）。',
+    chooseDataDir:        '选择文件夹',
+    resetDataDir:         '恢复默认',
+
     sizeModeCover:          '填充（默认）',
     sizeModeRepeat:         '平铺',
     sizeModeContain:        '拉伸',

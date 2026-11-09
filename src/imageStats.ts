@@ -12,8 +12,7 @@
  * sharp 是可选依赖，加载失败时整个模块降级为「未知」，不影响壁纸本身。
  */
 import * as fs from 'fs';
-import * as path from 'path';
-import { getContext } from './global';
+import { dataFile } from './dataDir';
 import { isVideoFile } from './pathUtil';
 import { getThumbnail } from './thumbnails';
 
@@ -66,11 +65,12 @@ function normalizePathKey(value: string): string {
 }
 
 function statsFilePath(): string | undefined {
-    try {
-        return path.join(getContext().globalStorageUri.fsPath, STATS_FILE_NAME);
-    } catch {
-        return undefined;
-    }
+    return dataFile(STATS_FILE_NAME);
+}
+
+/** 数据目录变化后丢弃内存缓存，下次读取直接用新目录里的文件。 */
+export function reloadPersistedStats(): void {
+    persistedStats = undefined;
 }
 
 function loadPersistedStats(): Record<string, PersistedFolderStats> {

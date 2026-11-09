@@ -21,14 +21,20 @@ import * as fs from 'fs';
 import { PickList } from './PickList';
 import { setContext } from './global';
 import { CUSTOM_JS_FILE_PATH, collectStaleWindowCssFiles, detectPatchState, readRenderedImagePath } from './FileDom';
-import { pruneOldThumbnails } from './thumbnails';
+import { dataDir, migrateData } from './dataDir';
+import { reloadImagePositions } from './imagePositions';
+import { reloadPersistedStats } from './imageStats';
 import { StudioViewProvider } from './StudioViewProvider';
 import { hasCurrentImageRecord, hasCurrentSessionRecord, resolveCurrentImagePath, setCurrentBlur, setCurrentImagePath, setCurrentOpacity } from './windowBackground';
 import { migrateLegacyFolder } from './playlists';
 
 
+// 上一次生效的数据目录，用于在设置变化时把旧目录的数据搬过来
+let lastDataDir: string | undefined;
+
 export function activate(context: ExtensionContext) {
 	setContext(context);
+	lastDataDir = dataDir();
 	// 创建底部按钮 - 背景图片配置
 	let backImgBtn = window.createStatusBarItem(StatusBarAlignment.Right, -999);
 	backImgBtn.text = '$(file-media)';
@@ -93,11 +99,21 @@ export function activate(context: ExtensionContext) {
 	// 回收历史窗口会话遗留的 CSS 文件，不阻塞启动
 	void collectStaleWindowCssFiles();
 
-	// 清理过期缩略图缓存，不阻塞启动
-	void pruneOldThumbnails();
-
 	// 监听配置变化
 	context.subscriptions.push(workspace.onDidChangeConfiguration(e => {
+		if (e.affectsConfiguration('backgroundCover.dataDir')) {
+			// 换数据目录：先把旧目录里的数据搬过去（复制，不删源文件），
+			// 再丢掉按旧路径读出来的内存缓存，否则面板仍显示旧扫描结果。
+			const before = lastDataDir;
+			const after = dataDir();
+			lastDataDir = after;
+			if (after && after !== before) {
+				const copied = migrateData(before, after);
+				if (copied) { console.log(`[BackgroundCover] migrated ${copied} data file(s) to`, after); }
+			}
+			reloadImagePositions();
+			reloadPersistedStats();
+		}
 		if (e.affectsConfiguration('backgroundCover.autoStatus') || e.affectsConfiguration('backgroundCover.autoInterval')) {
 			PickList.startAutoRandomTask();
 		}
@@ -124,6 +140,21 @@ export function activate(context: ExtensionContext) {
 	context.subscriptions.push(startCommand);
 	context.subscriptions.push(randomCommand);
 	context.subscriptions.push(showMenuCommand);
+
+	// 数据目录：选一个自己的文件夹，卸载扩展时就不会被一起删掉
+	context.subscriptions.push(commands.registerCommand('backgroundCover.pickDataDir', async () => {
+		const picked = await window.showOpenDialog({
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: false,
+			openLabel: '用作数据目录'
+		});
+		if (!picked || !picked.length) { return; }
+		await workspace.getConfiguration('backgroundCover').update('dataDir', picked[0].fsPath, true);
+	}));
+	context.subscriptions.push(commands.registerCommand('backgroundCover.resetDataDir', async () => {
+		await workspace.getConfiguration('backgroundCover').update('dataDir', '', true);
+	}));
 
 	// webview
 	// New Vue-powered Studio webview (primary configuration UI)

@@ -2,7 +2,7 @@
     "name": "background-cover",
     "displayName": "background-cover",
     "description": "Add a picture you like to cover the entire vscode background (Hot Reload Supported). / 添加你喜欢的图片覆盖整个vscode背景（支持热更新）",
-    "version": "3.10.1",
+    "version": "3.10.4",
     "publisher": "manasxx",
     "engines": {
         "vscode": "^1.38.0"
@@ -80,6 +80,12 @@
                     "type": "string",
                     "default": "",
                     "description": "背景图片路径"
+                },
+                "backgroundCover.dataDir": {
+                    "type": "string",
+                    "default": "",
+                    "scope": "machine",
+                    "markdownDescription": "插件数据的存放位置（缩略图、单图取景位置、目录扫描结果）。留空存在 VS Code 的扩展存储目录，**卸载扩展时会一起删除**；指定一个自己的文件夹后，卸载不会删除这里的数据。只保存本插件自己的数据，不涉及 VS Code 或其它扩展的配置。"
                 },
                 "backgroundCover.perWindowBackground": {
                     "type": "boolean",

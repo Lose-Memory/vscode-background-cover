@@ -156,6 +156,26 @@
             <div class="row-hint">{{ t('blendModeHint') }}</div>
         </el-card>
 
+        <!-- 数据存储：换到自己的文件夹，卸载扩展不会删 -->
+        <el-card class="card" shadow="never">
+            <template #header>
+                <span class="card-title">
+                    <el-icon><FolderOpened /></el-icon>
+                    {{ t('dataSection') }}
+                </span>
+            </template>
+
+            <div class="row">
+                <span class="row-label">{{ t('dataDirLabel') }}</span>
+                <span class="data-path" :title="config.dataDirEffective">{{ shortDataDir }}</span>
+            </div>
+            <div class="row-hint">{{ t('dataDirHint') }}</div>
+            <div class="data-actions">
+                <el-button size="small" @click="onPickDataDir">{{ t('chooseDataDir') }}</el-button>
+                <el-button size="small" link :disabled="!config.dataDir" @click="onResetDataDir">{{ t('resetDataDir') }}</el-button>
+            </div>
+        </el-card>
+
         <!-- Misc -->
         <el-card class="card" shadow="never">
             <div class="row-hint hint-top">{{ t('applyChangesHint') }}</div>
@@ -171,7 +191,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Refresh, ArrowRight, FullScreen, Brush, Monitor, RefreshRight, Crop } from '@element-plus/icons-vue';
+import { Refresh, ArrowRight, FullScreen, Brush, Monitor, RefreshRight, Crop, FolderOpened } from '@element-plus/icons-vue';
 import { useI18n, type MessageKey } from '../composables/useI18n';
 import { useBridge } from '../composables/useBridge';
 import { useDebouncedPost } from '../composables/useDebouncedPost';
@@ -251,6 +271,15 @@ const blendModeOptions = computed(() => BLEND_MODES.map((value) => ({
 
 function onSourceFolder() { bridge.post({ type: 'runAction', action: ActionType.AddDirectory }); }
 function onApplyChanges() { bridge.post({ type: 'applyDecorations' }); }
+
+// 数据目录：默认显示实际生效路径，太长时只留尾部
+const shortDataDir = computed(() => {
+    const p = config.dataDirEffective || '';
+    if (!p) { return t('notSet'); }
+    return p.length > 30 ? '…' + p.slice(-29) : p;
+});
+function onPickDataDir() { bridge.post({ type: 'pickDataDir' }); }
+function onResetDataDir() { bridge.post({ type: 'resetDataDir' }); }
 </script>
 
 <style lang="scss" scoped>
@@ -310,6 +339,24 @@ function onApplyChanges() { bridge.post({ type: 'applyDecorations' }); }
 }
 
 .block-select { width: 100%; }
+
+.data-path {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    max-width: 68%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl;
+    text-align: left;
+}
+
+.data-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 8px;
+}
 
 /* 竖图纵向取景：标签一行、滑块占满一行 */
 .row-col {

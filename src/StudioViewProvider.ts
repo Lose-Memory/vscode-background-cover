@@ -22,6 +22,7 @@ import { getThumbnail } from './thumbnails';
 import { getCachedImageSize, getLatestScan, scanFolderSizes } from './imageStats';
 import { getActivePlaylist, getActivePlaylistFolder, getPlaylistFolder } from './playlists';
 import { getImagePosition, setImagePosition } from './imagePositions';
+import { dataDir } from './dataDir';
 
 const PUSH_DEBOUNCE_MS = 120;
 
@@ -38,6 +39,8 @@ const PUSH_DEBOUNCE_MS = 120;
  *   { type: 'thumbnailsRequest', paths: string[] }
  *   { type: 'scanFolder' }
  *   { type: 'applyDecorations' }
+ *   { type: 'pickDataDir' }
+ *   { type: 'resetDataDir' }
  *   { type: 'openExternal', url: string }
  *
  * Outbound:
@@ -178,7 +181,10 @@ export class StudioViewProvider implements WebviewViewProvider {
                         return size ? size.width / size.height : 0;
                     })(),
                     // 单张图片单独设置的纵向位置（null = 跟随全局）
-                    imagePosition: getImagePosition(imagePath) ?? null
+                    imagePosition: getImagePosition(imagePath) ?? null,
+                    // 数据目录：dataDir 是用户配置值（空 = 默认），dataDirEffective 是实际生效的绝对路径
+                    dataDir: cfg.get<string>('dataDir') || '',
+                    dataDirEffective: dataDir() || ''
                 },
                 state: {
                     folderImages,
@@ -263,6 +269,14 @@ export class StudioViewProvider implements WebviewViewProvider {
 
             case 'scanFolder':
                 await this.scanFolder();
+                return;
+
+            case 'pickDataDir':
+                await commands.executeCommand('backgroundCover.pickDataDir');
+                return;
+
+            case 'resetDataDir':
+                await commands.executeCommand('backgroundCover.resetDataDir');
                 return;
 
             case 'openExternal':

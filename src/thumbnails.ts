@@ -7,13 +7,12 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getContext } from './global';
+import { dataDir } from './dataDir';
 import { isVideoFile } from './pathUtil';
 
 const THUMB_WIDTH = 160;
 const THUMB_QUALITY = 72;
 const MAX_CONCURRENCY = 6;
-const PRUNE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 type SharpFactory = (input: string, options?: Record<string, unknown>) => any;
 
@@ -32,14 +31,10 @@ function loadSharp(): SharpFactory | null {
     return sharpFactory;
 }
 
-/** 取不到 globalStorage（例如测试环境）时返回 undefined，缩略图整体降级。 */
+/** 取不到数据目录（例如测试环境）时返回 undefined，缩略图整体降级。 */
 export function thumbnailsDir(): string | undefined {
-    try {
-        const storage = getContext().globalStorageUri;
-        return storage && storage.fsPath ? path.join(storage.fsPath, 'thumbnails') : undefined;
-    } catch {
-        return undefined;
-    }
+    const dir = dataDir();
+    return dir ? path.join(dir, 'thumbnails') : undefined;
 }
 
 let running = 0;
@@ -109,26 +104,4 @@ export async function getThumbnail(filePath: string): Promise<string | undefined
         release();
     }
     return fs.existsSync(target) ? target : undefined;
-}
-
-/** 清掉 30 天没被访问过的缩略图，避免缓存目录无限增长。 */
-export async function pruneOldThumbnails(): Promise<void> {
-    const dir = thumbnailsDir();
-    if (!dir) { return; }
-    let names: string[];
-    try {
-        names = fs.readdirSync(dir);
-    } catch {
-        return;
-    }
-    const deadline = Date.now() - PRUNE_MAX_AGE_MS;
-    for (const name of names) {
-        if (!name.endsWith('.webp')) { continue; }
-        const full = path.join(dir, name);
-        try {
-            if (fs.statSync(full).mtimeMs < deadline) { fs.unlinkSync(full); }
-        } catch {
-            // 单个文件失败不影响其它条目
-        }
-    }
 }

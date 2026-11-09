@@ -3,8 +3,7 @@
  * 存放在 globalStorage/image-positions.json：路径数量可能很多，不塞进 globalState。
  */
 import * as fs from 'fs';
-import * as path from 'path';
-import { getContext } from './global';
+import { dataFile } from './dataDir';
 
 const FILE_NAME = 'image-positions.json';
 const MAX_ENTRIES = 5000;
@@ -16,11 +15,12 @@ function normalize(imagePath: string): string {
 }
 
 function positionsFilePath(): string | undefined {
-    try {
-        return path.join(getContext().globalStorageUri.fsPath, FILE_NAME);
-    } catch {
-        return undefined;
-    }
+    return dataFile(FILE_NAME);
+}
+
+/** 数据目录变化后丢弃内存缓存，下次读取直接用新目录里的文件。 */
+export function reloadImagePositions(): void {
+    cache = undefined;
 }
 
 function load(): Record<string, number> {

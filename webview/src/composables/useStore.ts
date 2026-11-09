@@ -35,6 +35,10 @@ export interface StudioConfig {
     imageAspect: number;
     /** 当前这张图片单独设置的纵向位置；null = 跟随全局 portraitVerticalPosition */
     imagePosition: number | null;
+    /** 用户配置的数据目录；空 = 默认（VS Code 扩展存储目录，卸载会删） */
+    dataDir: string;
+    /** 实际生效的数据目录绝对路径 */
+    dataDirEffective: string;
 }
 
 export interface FolderImage {
@@ -95,6 +99,8 @@ export const config = reactive<StudioConfig>({
     folderScanDepth: 3,
     imageAspect: 0,
     imagePosition: null,
+    dataDir: '',
+    dataDirEffective: '',
 });
 
 export const state = reactive<StudioState>({
