@@ -21,3 +21,4 @@ webview/vite.config.ts
 tsconfig.json
 vsc-extension-quickstart.md
 tslint.json
+my_local_data/

@@ -4,7 +4,12 @@
         "out": false // set this to true to hide the "out" folder with the compiled JS files
     },
     "search.exclude": {
-        "out": true // set this to false to include "out" folder in search results
+        "out": true, // set this to false to include "out" folder in search results
+        "my_local_data": true
+    },
+    // 扩展的本地数据（缩略图两千多张），不参与搜索与文件监听
+    "files.watcherExclude": {
+        "**/my_local_data/**": true
     },
     // Turn off tsc task auto detection since we have the necessary tasks as npm scripts
     "typescript.tsc.autoDetect": "off"
