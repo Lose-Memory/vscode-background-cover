@@ -182,7 +182,10 @@ const TRANSPARENT_COLOR_IDS: string[] = [
     // 菜单内部的 .monaco-scrollable-element 会刷 var(--vscode-menu-background)。
     // 菜单本身已经改成「透明 + ::before 毛玻璃」，这里再叠一层半透明黑，
     // 二级菜单就会比一级菜单多出一层 0.42 的深底，看起来更暗。
-    'menu.background'
+    'menu.background',
+    // 滚动条容器的底色。现代 UI 主题会把它设成黑色，透明化后整条滚动条
+    // 就是一条黑带；滑块颜色（scrollbarSlider.*）保持不动。
+    'scrollbar.background'
 ];
 
 /** 需要换成毛玻璃的浮层主题色（下拉/菜单/hover/补全/对话框/通知）。 */
@@ -289,6 +292,15 @@ ${overlayVars}
            画布，不读 CSS 变量，所以永远没法透明。编辑器滚动条隐藏后它仍会留着，
            表现为贴着右边缘的一条黑带；这里直接隐藏。 */
         ${WB} .minimap {
+            display: none !important;
+        }
+
+        /* 编辑器右侧的滚动条与概览标尺：editor.scrollbar.vertical 设为 hidden 只隐藏
+           滑块，Monaco 仍会保留一条与 verticalScrollbarSize 等宽的列（概览标尺 canvas
+           负责画 git 标记，底色由滚动条容器按主题绘制），在透明主题下就是一条黑带。
+           这里把整列一起隐藏。 */
+        ${WB} .monaco-editor .monaco-scrollable-element > .scrollbar.vertical,
+        ${WB} .monaco-editor .decorationsOverviewRuler {
             display: none !important;
         }
 
