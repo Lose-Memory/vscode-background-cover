@@ -289,10 +289,9 @@ ${overlayVars}
         }
 
         /* 右侧缩略图（minimap）是 canvas，底色由 Monaco 按主题的编辑器底色直接画进
-           画布，不读 CSS 变量，所以永远没法透明。编辑器滚动条隐藏后它仍会留着，
-           表现为贴着右边缘的一条黑带；这里直接隐藏。 */
+           画布，不读 CSS 变量，所以没法完全透明；半透明才能让壁纸透出来。 */
         ${WB} .minimap {
-            display: none !important;
+            opacity: .55 !important;
         }
 
         /* 编辑器右侧的滚动条与概览标尺：editor.scrollbar.vertical 设为 hidden 只隐藏
