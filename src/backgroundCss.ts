@@ -285,9 +285,11 @@ ${overlayVars}
             background-color: transparent !important;
         }
 
-        /* 缩略图是块 canvas，底色画在画布里；半透明才不会在壁纸上糊成一条黑带。 */
+        /* 右侧缩略图（minimap）是 canvas，底色由 Monaco 按主题的编辑器底色直接画进
+           画布，不读 CSS 变量，所以永远没法透明。编辑器滚动条隐藏后它仍会留着，
+           表现为贴着右边缘的一条黑带；这里直接隐藏。 */
         ${WB} .minimap {
-            opacity: .55 !important;
+            display: none !important;
         }
 
         /* 列表的粘性祖先行是 .monaco-list-row，被上面那条兜底刻意放过，
