@@ -326,22 +326,29 @@ ${overlayVars}
             background-color: transparent !important;
         }
 
-        /* 菜单（含二级菜单）与设置里的下拉列表：完全透明 + 毛玻璃。backdrop-filter
-           不能加在菜单本体上 —— 那会让它成为 fixed 子元素的包含块，二级菜单位置算错、
-           再被滚动容器裁掉。模糊交给 ::before 伪元素：它是菜单的子节点，不影响定位。 */
+        /* 菜单（含二级菜单）、设置里的下拉列表与 ActionWidget 弹层：完全透明 + 毛玻璃。
+           backdrop-filter 不能加在菜单本体上 —— 那会让它成为 fixed 子元素的包含块，
+           二级菜单位置算错、再被滚动容器裁掉。模糊交给 ::before 伪元素：它是菜单的
+           子节点，不影响定位。
+           .action-widget 是聊天/模型选择等新式下拉（Agent、Ask、Plan、权限弹层）的
+           容器，底色读的是 --vscode-menu-background；不点名它就会只剩透明、没有模糊，
+           弹层文字和下面的内容叠在一起。 */
         ${WB5} .monaco-menu,
         ${WB5} .monaco-submenu,
-        ${WB5} .monaco-select-box-dropdown-container {
+        ${WB5} .monaco-select-box-dropdown-container,
+        ${WB5} .action-widget {
             background-color: transparent !important;
         }
 
         ${WB5} .monaco-menu::before,
         ${WB5} .monaco-submenu::before,
-        ${WB5} .monaco-select-box-dropdown-container::before {
+        ${WB5} .monaco-select-box-dropdown-container::before,
+        ${WB5} .action-widget::before {
             content: '';
             position: absolute;
             inset: 0;
             z-index: -1;
+            border-radius: inherit;
             backdrop-filter: blur(26px) saturate(1.1);
             -webkit-backdrop-filter: blur(26px) saturate(1.1);
         }
