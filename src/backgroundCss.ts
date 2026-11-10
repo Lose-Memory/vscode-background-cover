@@ -355,6 +355,16 @@ ${overlayVars}
                压在菜单内容下面；否则它会掉到工作台后面，模糊完全看不见
                （设置页齿轮菜单就是这样完全透明的）。 */
             isolation: isolate;
+            /* will-change: opacity 会让元素成为 backdrop root，弹层内部的
+               backdrop-filter 只能采样到空内容，模糊同样失效。VS Code 的
+               菜单/下拉动画恰好在祖先上留了 will-change: opacity。 */
+            will-change: auto !important;
+        }
+
+        /* 上下文菜单的滚动容器（动画规则里带 will-change: opacity）在菜单
+           和背景之间，必须一并关掉，否则上面那条菜单模糊仍然采不到壁纸。 */
+        ${WB5} .context-view > .monaco-scrollable-element {
+            will-change: auto !important;
         }
 
         ${WB5} .monaco-menu::before,
