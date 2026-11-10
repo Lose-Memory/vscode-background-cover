@@ -11,16 +11,16 @@ const WORKSPACE_IMAGES_KEY = 'backgroundCover.workspaceImages';
 // 兜底读取，扩展不再回写它。
 const GLOBAL_IMAGE_KEY = 'backgroundCover.globalImage';
 
-// 透明度/模糊度与背景图走同一套「窗口(session) → 工作区 → 兜底」的解析链，
-// 让不同工作区的窗口在 webview 里各自显示自己的数值。区别只在最后一层：
-// 背景图有 globalState 里的"最后一张全局兜底"，透明度/模糊度则直接落到
-// settings.json 的配置值——用户在某窗口调透明度不应该把其他窗口的显示值也
-// 刷成同一个数（而且那些窗口的实际渲染用的仍是它们各自记录的旧值，数值跟着
-// 全局配置走反而会造成"显示值与实际效果不一致"的困惑）。
+// 透明度/模糊度与背景图走同一套「窗口(session) → 工作区 → 全局兜底 → 设置值」
+// 的解析链，让不同工作区的窗口在 webview 里各自显示自己的数值。
+// 全局兜底记录"最后一次设置的值"：没有工作区目录的窗口（空窗口）没有工作区记录
+// 可存，session 记录又在重启后失效，少了这一层就会退回 settings.json 里的旧值。
 const WINDOW_OPACITY_KEY = 'backgroundCover.windowOpacity';
 const WORKSPACE_OPACITY_KEY = 'backgroundCover.workspaceOpacity';
+const GLOBAL_OPACITY_KEY = 'backgroundCover.globalOpacity';
 const WINDOW_BLUR_KEY = 'backgroundCover.windowBlur';
 const WORKSPACE_BLUR_KEY = 'backgroundCover.workspaceBlur';
+const GLOBAL_BLUR_KEY = 'backgroundCover.globalBlur';
 
 // window 记录以 session 为键，而 session 每次启动/重载都会变，这张表只增不减。
 // 保留最近若干条(按插入顺序淘汰)，当前窗口的记录永不淘汰。
@@ -159,7 +159,7 @@ export interface SetImageOptions {
  * 把某个按窗口/工作区维度存储的值写入 globalState：当前窗口(session)记录 +
  * 当前工作区记录。共用模式(perWindowBackground=false)下不写任何记录，
  * 由调用方走 settings.json 保持旧版全局共享行为。
- * @param globalKey 背景图需要额外维护一份"最后一张全局兜底"，透明度/模糊度不需要。
+ * @param globalKey 额外维护的"最后一次值"全局兜底（背景图/透明度/模糊度都需要）。
  */
 async function persistLevelValue(
     windowKey: string,
@@ -211,6 +211,7 @@ export async function setCurrentImagePath(imagePath: string, options: SetImageOp
 function resolveLevelValue<T extends string | number>(
     windowKey: string,
     workspaceKey: string,
+    globalKey: string,
     settingsFallback: T
 ): T {
     if (isPerWindowEnabled()) {
@@ -226,21 +227,27 @@ function resolveLevelValue<T extends string | number>(
                 return workspaceMap[workspaceHash];
             }
         }
+        // 空窗口没有工作区记录，重启后只能靠这条全局兜底记住上次的值。
+        const globalValue = getContext().globalState.get<T>(globalKey);
+        if (globalValue !== undefined) {
+            return globalValue;
+        }
     }
     return settingsFallback;
 }
 
 export function resolveCurrentOpacity(settingsFallback: number): number {
-    return resolveLevelValue<number>(WINDOW_OPACITY_KEY, WORKSPACE_OPACITY_KEY, settingsFallback);
+    return resolveLevelValue<number>(WINDOW_OPACITY_KEY, WORKSPACE_OPACITY_KEY, GLOBAL_OPACITY_KEY, settingsFallback);
 }
 
 export function resolveCurrentBlur(settingsFallback: number): number {
-    return resolveLevelValue<number>(WINDOW_BLUR_KEY, WORKSPACE_BLUR_KEY, settingsFallback);
+    return resolveLevelValue<number>(WINDOW_BLUR_KEY, WORKSPACE_BLUR_KEY, GLOBAL_BLUR_KEY, settingsFallback);
 }
 
 /**
  * 写入当前窗口的透明度。共用模式下回写 settings.json（全局共享），
- * 独立模式下只写 globalState 的窗口/工作区记录，不再触碰 settings.json。
+ * 独立模式下写 globalState 的窗口/工作区记录，并维护一份全局兜底
+ * （空窗口重启后靠它恢复上次的值），不再触碰 settings.json。
  */
 export async function setCurrentOpacity(value: number, cfg: WorkspaceConfiguration): Promise<void> {
     if (Number.isNaN(value)) { return; }
@@ -248,7 +255,7 @@ export async function setCurrentOpacity(value: number, cfg: WorkspaceConfigurati
         await cfg.update('opacity', value, ConfigurationTarget.Global);
         return;
     }
-    await persistLevelValue(WINDOW_OPACITY_KEY, WORKSPACE_OPACITY_KEY, undefined, value);
+    await persistLevelValue(WINDOW_OPACITY_KEY, WORKSPACE_OPACITY_KEY, GLOBAL_OPACITY_KEY, value);
 }
 
 /** 写入当前窗口的模糊度，语义同 setCurrentOpacity。 */
@@ -258,7 +265,7 @@ export async function setCurrentBlur(value: number, cfg: WorkspaceConfiguration)
         await cfg.update('blur', value, ConfigurationTarget.Global);
         return;
     }
-    await persistLevelValue(WINDOW_BLUR_KEY, WORKSPACE_BLUR_KEY, undefined, value);
+    await persistLevelValue(WINDOW_BLUR_KEY, WORKSPACE_BLUR_KEY, GLOBAL_BLUR_KEY, value);
 }
 
 function pruneRecords(map: Record<string, string | number>, keepKey: string): Record<string, string | number> {

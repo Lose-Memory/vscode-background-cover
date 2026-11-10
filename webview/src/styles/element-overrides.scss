@@ -64,7 +64,10 @@ html, body {
     border-bottom: var(--studio-divider) !important;
     background: linear-gradient(180deg, rgba(108,140,255,0.06), transparent);
 }
-.el-card__body { padding: 10px 12px !important; }
+/* Element Plus 的卡片内容区默认 overflow: auto。滑块手柄位于最右端时，
+   36px 的手柄包围盒会向右超出滑块跑道 18px，卡片底部因此出现横向滚动条。
+   只裁掉横向溢出，纵向滚动保持可用。 */
+.el-card__body { padding: 10px 12px !important; overflow-x: hidden !important; }
 
 /* ===== Buttons ===== */
 .el-button {
