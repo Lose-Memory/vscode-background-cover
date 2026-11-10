@@ -351,6 +351,10 @@ ${overlayVars}
         ${WB5} .monaco-select-box-dropdown-container,
         ${WB5} .action-widget {
             background-color: transparent !important;
+            /* 创建独立的层叠上下文，::before 的 z-index:-1 才会留在弹层内部、
+               压在菜单内容下面；否则它会掉到工作台后面，模糊完全看不见
+               （设置页齿轮菜单就是这样完全透明的）。 */
+            isolation: isolate;
         }
 
         ${WB5} .monaco-menu::before,
